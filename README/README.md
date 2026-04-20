@@ -118,3 +118,5 @@ Quá trình boot của linux có 3 giai đoạn chính
 - **Làm sao SPL biết địa chỉ để load TPL?**
 - **Làm sao TPL biết địa chỉ để load kernel?**
     > Những câu hỏi trên sẽ cần để port Uboot lên 1 board khác ngoài BBB
+
+------ 15 SPL code ------
