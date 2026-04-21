@@ -116,7 +116,44 @@ Quá trình boot của linux có 3 giai đoạn chính
         - 26.1.8.5.6 FAT mode: phân vùng thẻ thành FAT, lưu file MLO vào, sau đó rom code sẽ tìm file có tên là MLO và thực thi lệnh.
         - Dùng lệnh `sudo hexdump -C -s 0x20000 -n 100 /dev/sdb` với 0x20000 là  thể hiện cho offset 128KB
 - **Làm sao SPL biết địa chỉ để load TPL?**
+    + Cpu cần biết địa chỉ để đọc TPL và địa chỉ đó được ghi trong u-boot/.config
+    + u-boot/.config: là file chứa config chung cho phase SPL
+        - CONFIG_SYS_MMCSD_RAW_MODE_U_BOOT_USE_SECTOR=y: dùng Raw mode
+        - CONFIG_SYS_MMCSD_RAW_MODE_U_BOOT_SECTOR=0x300: địa chỉ để load code TPL, vì vậy cần lưu code TPL vào 0x300
+        - `sudo dd if=./u-boot/u-boot-dtb.img of=${DISK} count=4 seek=1 bs=384k`: lệnh để ghi TPL vào 0x300 
+            + 384 * 1 * 1024 = 0x60000 - là địa chỉ ghi TPL xuống thẻ nhớ byte thứ 60000
+            + 0x300: TPL đặt lại sector 0x300
+            + Hoặc có thể hiểu 0x300(hex) = 768(dec), mà 1 sector của sdcard thường là 512 nên 768 * 512 = 60000
+                > Cpu sẽ thực thi code ở byte 0x60000
 - **Làm sao TPL biết địa chỉ để load kernel?**
+    + Cpu cần biết địa chỉ để TPL load kernel và địa chỉ đó được ghi trong u-boot/.config
+    + u-boot/.config:
+        - CONFIG_SYS_LOAD_ADDR=0x82000000: cần đặt sẵn file kernel vào địa chỉ này để load được kernel. 
+        - Có thể thay đổi địa chỉ load kernel thông qua uEnv.txt hoặc có thể sửa code uBoot
+
     > Những câu hỏi trên sẽ cần để port Uboot lên 1 board khác ngoài BBB
 
------- 15 SPL code ------
+## 2. Modify Uboot
+### 2.1 Tại sao cần modify Uboot
+> Code Uboot rất linh động, có thể chạy trên nhiều nền tảng:x86, arm,... Mỗi dòng board đều gắn các linh kiện khác nhau: có/không sdcard, có/không emmc, ..., việc cần làm là thay đổi code Uboot để boot kernel dưới các điều kiện khác nhau.
+
+### 2.2 uEnv.txt - custom Uboot
+- thường được lưu ở /boot/uEnv.txt
+- Khi uboot chay, nó đọc file uEnv.txt
+- viết script để chỉnh sửa hành vi uboot
+- Command uboot
+    - `Loadaddr <destination address> <file to load>`: load file tới đích
+    - `Setenv <variable> <value>`: set value cho 1 biến trong uboot
+    - `Printenv <variable>`: in biến môi trường trong uboot ra
+    - `Run`: chạy bất cứ biến môi trường nào của uboot
+
+### 2.3 Script uboot hoạt động như nào
+![alt text](image-3.png)
+- Uboot là tập hợp nhiều biến môi trường. Nó sẽ setup các varible sau đó sắp các biến đó thành List variable và thiết lập mối liên kết giứa các biến môi trường. Sau đó dùng run để thực thi biến môi trường
+- Nhấn space liên tục lúc boot để vào uboot ở bbb
+- uEnv.txt example:
+    > bootargs=console=tty00,115200 root=/dev/mmcblk0p1 rw
+bootcmd=echo "Running bootcmd ..."; load mmc 0:1 0x82000000 /boot/vmlinuz-5.4.288-bone69; load mmc 0:1 0x880000 /boot/dtbs/5.4.288-bone69/am335x-boneblack.dtb; bootz 0x82000000 - 0x88000000;
+boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
+
+---- 18 -----
