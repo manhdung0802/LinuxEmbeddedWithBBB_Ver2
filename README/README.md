@@ -156,4 +156,11 @@ Quá trình boot của linux có 3 giai đoạn chính
 bootcmd=echo "Running bootcmd ..."; load mmc 0:1 0x82000000 /boot/vmlinuz-5.4.288-bone69; load mmc 0:1 0x880000 /boot/dtbs/5.4.288-bone69/am335x-boneblack.dtb; bootz 0x82000000 - 0x88000000;
 boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
 
----- 18 -----
+# V. Linux OS structure
+## 1. Cấu trúc của Linux OS
+![alt text](image-4.png)
+- Bootloader: có chức năng load kernel vào bộ nhớ. U-boot là 1 trong các phiên bản bootloader thường được dùng, nó support nhiều kiến trúc, size nhỏ, dùng để load kernel 
+- Kernel: quản lý tài nguyên, task, process, thread, quản lý bộ lập lịch
+- Root file system: là hệ thống file được public tới người dùng, để người dùng tương tác thông qua file
+
+-- 20 -- 
