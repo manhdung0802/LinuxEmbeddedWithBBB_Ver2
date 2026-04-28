@@ -163,4 +163,21 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
 - Kernel: quản lý tài nguyên, task, process, thread, quản lý bộ lập lịch
 - Root file system: là hệ thống file được public tới người dùng, để người dùng tương tác thông qua file
 
--- 20 -- 
+## 2. Build Root basic concept
+- Buildroot là dự án mã nguổn mở gồm các script và makefiles để tự động hóa build hệ thống
+### 2.1 Buildroot bao gồm:
++ Toolchain: là các compile, hỗ trợ build chéo từ máy host ra image cho target
++ Kernel: buildroot có thể tự động tải kernel source, apply patches, cấu hình tùy chọn kernel dựa vào target platform
++ Root filesystem: chứa các thư viện, binary cần thiết
++ Bootloaders: hỗ trợ nhiều BL bao gồm Uboot
+- Output của buildroot: output nằm trong sdcard và boot từ sdcard
+    + Uboot image
+    + kernel image
+    + root file system
+    + device tree binary
+### 2.2 Cách build bằng buildroot
+- Vào folder buildroot-2026.02
+- chạy các lệnh như trong file: buildroot-2026.02/board/beagleboard/beaglebone/readme.txt
+- cầu hình trong menucondfig: Xem `Linux Embedded #22 Build Root build and generate package`
+
+--- 23 ---
