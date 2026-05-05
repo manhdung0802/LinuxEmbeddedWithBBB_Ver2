@@ -178,6 +178,31 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
 ### 2.2 Cách build bằng buildroot
 - Vào folder buildroot-2026.02
 - chạy các lệnh như trong file: buildroot-2026.02/board/beagleboard/beaglebone/readme.txt
-- cầu hình trong menucondfig: Xem `Linux Embedded #22 Build Root build and generate package`
+- cầu hình trong menucondfig: Xem `Linux Embedded #22 Build Root build and generate package` - lưu ý TTY port cần set là ttyS0
 
---- 23 ---
+### 2.3. Output buildroot
+- /buildroot-2023.08/output/images/
+- sdcard.img: gồm tất cả mọi thứ (bootloader, kernel, ...)
+- To copy the image file to the sdcard use dd:
+    + umount /dev/sdx
+    + dd if=output/images/sdcard.img of=/dev/XXX
+    + thẻ nhớ sẽ được chia thành 2 vùng 16M (để boot) và 512M (rootfs)
+
+# VI. Linux kernel
+## 1. Kernel
+- Hầu hết các hệ thống có ứng dụng hệ điều hành (window, linux, macos) đều có khái niệm nhân
+- Nhân là trái tim hệ điều hành, có nhiệm vụ:
+    - quản lý tài nguyên hệ thống, process, task 
+    - nó giống như 1 cầu nối giữa tầng người dùng với phần cứng.
+
+## 2. Kernel module
+### 2.1 Khái niệm
+- là những module được viết để thực thi trong kernel
+- nó có khả năng load và unload vào kernel
+- có khả năng mở rộng tính năng của kernel mà không cần reboot lại cả hệ thống linux (window thì cần khởi động lại, chính vì thể nhiều hệ thống server dùng linux để tránh việc khởi động lại làm mất dữ liệu, tốn năng lượng khởi động)
+- Ưu điểm: 
+    + bản thân kernel module không cần build với nhân, vì vậy giảm được size của kernel, giúp code kernel linh động hơn
+    + không cần build lại kernel khi thay đổi driver, tiết kiệm thời gian, chi phí
+    + Không cần reboot khi có update kernel module
+
+-- 27 --
