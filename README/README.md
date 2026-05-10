@@ -205,4 +205,58 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
     + không cần build lại kernel khi thay đổi driver, tiết kiệm thời gian, chi phí
     + Không cần reboot khi có update kernel module
 
--- 27 --
+> ### Bản chất tại sao có thể load và unload kernel runtime được? Tới 2 phần linking tiếp theo
+### 2.2 Static linking
+- Link tất cả file obj thành 1 file thống nhất
+- Tất cả code thành 1 file linking duy nhất
+- Linking time: xảy ra ở lúc compile
+- Flexible: ít linh động, sửa 1 thì phải build lại cả chương trình
+- Hiệu năng: khởi chạy nhanh hơn dynamic linking 
+### 2.3 Dynamic linking
+- Link các thư viện bên ngoài
+- FIle thực thi khi build ra khá nhỏ vì lúc nào cần dùng thư viện nào thì nó mới link vào chương trình
+- Linking time: xảy ra ở lúc runtime
+- Flexible: linh động hơn, dễ maintain, sửa thư viện nào thì build lại thư viện đó thôi
+- Hiệu năng: khởi chạy chậm hơn static linking
+- Code example: codeExamples/dynamicLinking
+> ### Cơ chế loadable của kernel module tương tự như Dynamic linking. 
+> ### File kernel module đã build rồi load vào kernel bản chất là link code vào kernel
+> ### Người ta ưa thích dynamic linking cho kernel vì kernel nhỏ thì hệ thống load nhanh
+
+### 2.4 Kernel module example
+- codeExamples/kernelModule
+- 2 thư viện quan trọng
+    - linux/module.h: cung cấp API (module_init, module_exit)
+    - linux/init.h: 
+- Kernel dùng kbuild để build code
+- Chỉ có quyền sudo mới load, unload, ... kernel (sudo -s)
+- Load kernel: `insmod kernel.ko`
+- Unload kernel: `rmmod kernel.ko`
+
+### 2.5 Tương tác file trong linux
+- codeExamples/file_handling
+- tất cả đối tượng của linux đều là file
+- Khi load code của kernel module vào kernel thì linux sẽ tạo ra 1 file để đại diện cho kernel module đó 
+- Application sẽ tương tác với kernel module bằng device file đó
+- API để tương tác với file: check lại `man7.org`
+- Linux quản lý file qua file table, linux quản lý các file qua trường index và tương tác qua file nào thì cần dùng index của file đó và tìm index qua hàm open()
+
+### 2.6 Device file concept
+![alt text](image-5.png)
+- Khi link kernel module vào kernel, linux sẽ tạo ra 1 device file
+- Device file là file trong linux, đại diện cho 1 module
+- Module đó đại diện cho 1 hardware tương ứng
+- Hiểu đơn giản là hardware đó cần 1 trình điều khiển để user tương tác được thông qua software
+- Flow: 
+    + user tương tác với kernel module thông qua device file này
+    + device file này gửi dữ liệu xuống kernel module 
+    + kernel module tương tác với phần cứng
+
+#### 2.6.1 Tạo device file
+- codeExamples/device_file
+- Có 3 cách tạo device file
+    - dùng command mknod
+    - dùng thư viện udev
+    - dùng Misc module: build 1 kernel module dạng misc module
+
+-- 33 --

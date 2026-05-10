@@ -1,1 +1,8 @@
 buildroot-2023.08
+*.o
+*.so
+*.cmd
+*.ko
+*.mod
+*.order
+*.symvers
