@@ -1,9 +1,8 @@
 obj-m := device_file_kernel_module.o
 
-
 KERNEL_SRC = /lib/modules/$(shell uname -r)/build
 
-build_module:
+build_kernel:
 	make -C $(KERNEL_SRC) M=$(shell pwd) modules
 
 build_app:
@@ -11,10 +10,4 @@ build_app:
 
 clean:
 	make -C $(KERNEL_SRC) M=$(shell pwd) clean
-	rm ./app_device_file
-
-
-
-
-
-
+	rm -f ./app_device_file

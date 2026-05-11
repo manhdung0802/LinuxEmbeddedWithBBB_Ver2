@@ -1,21 +1,21 @@
-#include <stdio.h>
 #include <fcntl.h>
-#include <unistd.h>
+#include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
-#define DEVICE_FILE "/dev/device_file_device"
-#define TX_BUFFER "1"
+#define OPEN_FILE "/dev/kernel_dung"
+#define DATA_WR "DungNM1"
 
 int main(void){
     int fd = 0;
     ssize_t size = 0;
-    fd = open(DEVICE_FILE, O_RDWR);
+    fd = open(OPEN_FILE, O_RDWR);
     if(fd < 0) {
         printf("Open file failed\n");
         return -1;
     }
 
-    size = write(fd, TX_BUFFER, strlen(TX_BUFFER));
+    size = write(fd, DATA_WR, strlen(DATA_WR));
     if(size < 0){
         printf("Write failed\n");
         close(fd);

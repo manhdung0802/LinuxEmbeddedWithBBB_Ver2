@@ -259,4 +259,9 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
     - dùng thư viện udev
     - dùng Misc module: build 1 kernel module dạng misc module
 
--- 33 --
+### 2.7. Cross Compile
+- codeExamples/cross_compile
+- Để các file execute chạy được trên BBB thì file đó phải được build với tập lệnh của arm
+- Tiết kiệm hiệu năng cho target machine vì code đã được build ở máy khác
+
+-- 34 --
