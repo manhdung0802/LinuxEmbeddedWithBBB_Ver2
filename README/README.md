@@ -264,4 +264,12 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
 - Để các file execute chạy được trên BBB thì file đó phải được build với tập lệnh của arm
 - Tiết kiệm hiệu năng cho target machine vì code đã được build ở máy khác
 
--- 34 --
+# VII. BeagleBone Black
+## 1. Configue pin mux
+- Để biết pin có mux gì thì cần biết thanh ghi nào
+- Xem `spruh73q.pdf - 9. Control module` ghi địa chỉ các thanh ghi để cấu hình pin mux
+- Lệnh check nhanh pin mux trên board
+    - `sudo cat /sys/kernel/debug/pinctrl/44e10800.pinmux-pinctrl-single/pins`
+    - pin 0 (PIN0) 0:gpio-0-31 44e10800(offset) 00000031(mode) pinctrl-single
+
+-- 35 --
