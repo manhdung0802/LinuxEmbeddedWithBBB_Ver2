@@ -263,6 +263,8 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
 - codeExamples/cross_compile
 - Để các file execute chạy được trên BBB thì file đó phải được build với tập lệnh của arm
 - Tiết kiệm hiệu năng cho target machine vì code đã được build ở máy khác
+- `Khi cross compile kernel, phiên bản header của bbb và pc phải giống nhau`
+- `Khi cross compile app, phiên bản header để build nhỏ hơn hoặc bằng header kernel của bbb`
 
 # VII. BeagleBone Black
 ## 1. Configue pin mux
@@ -271,5 +273,16 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
 - Lệnh check nhanh pin mux trên board
     - `sudo cat /sys/kernel/debug/pinctrl/44e10800.pinmux-pinctrl-single/pins`
     - pin 0 (PIN0) 0:gpio-0-31 44e10800(offset) 00000031(mode) pinctrl-single
+- Code sáng led khi load kernel: codeExamples/led_init
+## 2. Build code với kernel header 
+- Khi build cross compile kernel, cần trỏ tới đường dẫn KERNEL với số phiên bản đúng như ở BBB
+    - Sửa các dòng sau trong KERNEL/Makefile về phiên bản như ở BBB:
+        - VERSION = 6
+        - PATCHLEVEL = 18
+        - SUBLEVEL = 23
+        - EXTRAVERSION = -bone28
+        - chạy `make ARCH=arm CROSS_COMPILE=/usr/bin/arm-linux-gnueabihf- LOCALVERSION= modules_prepare`
+    - Nếu bị lỗi hiện dấu '+' ở sau phiên bản kernel, chạy lệnh:
+        - `make ARCH=arm CROSS_COMPILE=/usr/bin/arm-linux-gnueabihf- LOCALVERSION= modules_prepare`
 
--- 35 --
+-- next 37 --
