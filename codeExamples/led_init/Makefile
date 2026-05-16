@@ -13,7 +13,7 @@ all:
 
 clean:
 	make ARCH=arm CROSS_COMPILE=$(CROSS) -C $(KERNEL_SRC) M=$(shell pwd) clean
-	rm -rf led_app.o
+	rm -rf led_app
 
 copy:
 	scp led.ko led_app debian@192.168.1.100:/home/debian
