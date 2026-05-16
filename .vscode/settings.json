@@ -1,0 +1,13 @@
+{
+    "files.exclude": {
+        "**/.*.cmd": true,
+        "**/.*.d": true,
+        "**/*.o": true,
+        "**/*.mod": true,
+        "**/*.mod.c": true,
+        "**/modules.order": true,
+        "**/Module.symvers": true,
+        "**/.clangd": true,
+        "**/.cache": true
+    }
+}

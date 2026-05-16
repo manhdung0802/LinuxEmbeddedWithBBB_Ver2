@@ -273,7 +273,7 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
 - Lệnh check nhanh pin mux trên board
     - `sudo cat /sys/kernel/debug/pinctrl/44e10800.pinmux-pinctrl-single/pins`
     - pin 0 (PIN0) 0:gpio-0-31 44e10800(offset) 00000031(mode) pinctrl-single
-- Code sáng led khi load kernel: codeExamples/led_init
+- Code sáng led khi load kernel: `codeExamples/led_init`
 ## 2. Build code với kernel header 
 - Khi build cross compile kernel, cần trỏ tới đường dẫn KERNEL với số phiên bản đúng như ở BBB
     - Sửa các dòng sau trong KERNEL/Makefile về phiên bản như ở BBB:
@@ -285,4 +285,8 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
     - Nếu bị lỗi hiện dấu '+' ở sau phiên bản kernel, chạy lệnh:
         - `make ARCH=arm CROSS_COMPILE=/usr/bin/arm-linux-gnueabihf- LOCALVERSION= modules_prepare`
 
--- next 37 --
+## 3. Code với kernel
+- con trỏ ở tầng use và kernel không tương thích với nhau nên khi trao đổi dữ liệu, cần dùng `copy_from_user` để lấy data từ user
+- Khi write trong kernel, cần read từ pin ra trước rồi mới ghi để keep những giá trị bit khác và chỉ thay đổi bit mình muốn
+
+-- 38 --

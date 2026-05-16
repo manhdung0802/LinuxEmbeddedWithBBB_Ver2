@@ -1,0 +1,35 @@
+{
+    "configurations": [
+        {
+            "name": "Linux Kernel ARM",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/home/as/toolLinuxEmbedded/kernelbuildscripts/KERNEL/include",
+                "/home/as/toolLinuxEmbedded/kernelbuildscripts/KERNEL/arch/arm/include",
+                "/home/as/toolLinuxEmbedded/kernelbuildscripts/KERNEL/arch/arm/include/generated",
+                "/home/as/toolLinuxEmbedded/kernelbuildscripts/KERNEL/include/uapi",
+                "/home/as/toolLinuxEmbedded/kernelbuildscripts/KERNEL/arch/arm/include/uapi",
+                "/home/as/toolLinuxEmbedded/kernelbuildscripts/KERNEL/include/generated/uapi",
+                "/home/as/toolLinuxEmbedded/kernelbuildscripts/KERNEL/include/generated"
+            ],
+            "defines": [
+                "__KERNEL__",
+                "MODULE",
+                "KBUILD_MODNAME=\"led\""
+            ],
+            "compilerPath": "/usr/bin/arm-linux-gnueabihf-gcc",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "linux-gcc-arm",
+            "browse": {
+                "path": [
+                    "/home/as/toolLinuxEmbedded/kernelbuildscripts/KERNEL/include",
+                    "/home/as/toolLinuxEmbedded/kernelbuildscripts/KERNEL/arch/arm/include",
+                    "${workspaceFolder}"
+                ],
+                "limitSymbolsToIncludedHeaders": true
+            }
+        }
+    ],
+    "version": 4
+}
