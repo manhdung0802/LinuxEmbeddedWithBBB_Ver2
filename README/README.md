@@ -289,4 +289,27 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
 - con trỏ ở tầng use và kernel không tương thích với nhau nên khi trao đổi dữ liệu, cần dùng `copy_from_user` để lấy data từ user
 - Khi write trong kernel, cần read từ pin ra trước rồi mới ghi để keep những giá trị bit khác và chỉ thay đổi bit mình muốn
 
--- 38 --
+# VIII. Device tree
+## 1. Device tree là gì
+- Sửu dụng để mô hình hóa lại các cấu hình phần cứng
+- Ví dụ stm32 có 2 ngoại vi timer, 4 ngoại vi uart, ... Mỗi ngoại vi có cấu hình đi kèm: baud rate, config,... Bình thường, mình sẽ define cấu hình của các ngoại vi ở 1 file riêng dạng struct, array, ... và nạp xuống vdk.
+    - Nhược điểm: 
+        - Muốn đổi cấu hình baudrate chẳng hạn -> cần đổi cấu hình và build lại source -> tốn thời gian update từ board này qua board khác
+        - Phức tạp, có thể cấu hình sai vì không có 1 chuẩn chung
+- Từ khó khăn trên, người ra định nghĩa ra device tree
+- Device tree là cây chứa cấu hình phần cứng, nó nằm trong bộ nhớ thiết bị dưới dạng file nhị phân (binary).
+    - File nhị phân này nằm ở 1 vùng bộ nhớ
+    - Khi update chỉ cần update file nhị phân này
+    - Tránh build lại toàn project
+    - Dễ phát triển driver mà không cần phụ thuộc phần cứng nhiều
+
+## 2. Platform driver
+- Là 1 driver được khởi chạy trong thời gian khởi động của OS
+- Nó phân tích device tree, biết được cấu hình hardware -> thực hiện action để khởi tạo hệ thống
+- Ví dụ: khi booting, mình cần ethernet, platform driver sẽ kiểm tra device tree để tìm cấu hình thích hợp cho ethernet -> nó sẽ khởi tạo ngoại vi tương ứng
+- Khi viết platform driver, nó có 1 số API đặc trưng:
+    - `struct resource *platform_get_resource(struct platform_device *pdev, unsigned int type unsigned int n);` - đọc device tree và lấy ra 1 node trong device tree, biết được thông tin
+    - `struct resource *platform_get_resource_byname(struct platform_device *pdev, unsigned int type, const char *name);` - lấy resource theo tên
+    - `int platform_get_irq(struct platform_device *pdev, unsigned int n);` - get thông tin của interrupt của 1 node trong device tree
+
+-- 39
