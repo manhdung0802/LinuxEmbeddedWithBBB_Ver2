@@ -312,4 +312,70 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
     - `struct resource *platform_get_resource_byname(struct platform_device *pdev, unsigned int type, const char *name);` - lấy resource theo tên
     - `int platform_get_irq(struct platform_device *pdev, unsigned int n);` - get thông tin của interrupt của 1 node trong device tree
 
--- 39
+## 3. Layout của device tree
+- Bản chất nó là cấu trúc dữ liệu được build và nạp xuống bộ nhớ
+- Tại thời điểm khởi động os, khối data này được os phân tích: các hệ thống liên quan sẽ được khởi tạo
+- Ví dụ: 
+    - thời điểm khởi động, cần khởi tạo cache, cpu, ngoại vi thì cần định nghĩa trong device tree
+    - Khi port từ board A qua B, thì thay đổi config trong device tree
+- File device tree có ký hiệu: 
+    - .dts: file device tree gốc
+    - .dtsi: file device tree có thể include vào file khác
+    - .dtb: file binary output sau khi buld dts
+    - .dtbo
+- Cấu trúc của file device tree: `https://github.com/beagleboard/devicetree-source/blob/master/arch/arm/boot/dts/am33xx.dtsi`
+    - `/ {` - Start bằng ký hiệu 
+    -  `compatible = "ti,am33xx";` - mapping giữa device tree với driver điều khiển, nếu string này match với string được khai báo ở driver thì hàm proc sẽ được gọi để khởi tạo hệ thống
+    - `ti,...`: define custom của riêng Ti, không có trong cú pháp device tree
+    - `interrupt-parent = <&intc>;` - chỉ định hệ thống dùng interrupt controller nào
+    - `#address-cells = <1>` - 1(chip 32bit) hoặc 2(chip 64bit), đặc trưng cho viết địa chỉ của register, ngoại vi
+    - `#size-cells = <1>` - 1(32bit) dải địa chỉ của chip là 1 số 32bit hoặc 2(64bit) giải địa chỉ là 2 số 32bit
+    - `chosen { };` 
+        - để rỗng như này tức là trường này được define ở nơi khác, các trường thông tin có thể được ghi đè lẫn nhau
+        - `base_dtb = "am335x-boneblack.dts`: device tree này build ra file device tree binary .dtb nào
+        - `base_dtb_timestamp = __TIMESTAMP`: chỉ thị của compiler, record lại thời gian build để biết thông tin ngày giờ build, phiên bản build
+    - `aliases {i2c0 = &i2c0, v.v`: là dạng define ngoại vi i2c, uart, spi, ...
+    - `cpus {`: khai báo thông tin cpu (bao nhiêu nhân, compatible, ...)
+    - `ocp:` - on chip peripherals - trường thuộc tính cho ngoại vi
+        - node `edma`:
+            - `edma@49000000`: sau tên là @ và đia chỉ base address
+            - `reg =`: địa chỉ baseaddress và size
+            - `reg-names`: tên của thanh ghi
+            - `interrupts = <12 13 14>`: các line interrupt 0x12 0x13 0x14 mà edma có thể dùng
+            - `interrupt-names`: tên interrupt tương ứng với line
+            - `dma-requets = <64>`: số lượng requets dma mà driver có thể hỗ trợ 
+            - `#dma-cells = <2>`: support cho cấu hình dma, 2 cell thì có 1 cell cho dma controller và 1 cell cho dma channel. 
+    - `status = "okay"`: ngoại vi này có nên enable hay không
+
+## 4. Ví dụ mẫu cho code device tree
+- `codeExamples/device_tree`
+### 4.1. Thêm cấu hình trong file dts
+- file dts có thể compile từ file dtb lấy từ BBB
+    - `dtc -I dtb -O dts -o am335x-boneblack.dts am335x-boneblack.dtb`
+- check `user-data` trong `codeExamples/device_tree/am335x-boneblack.dts`
+### 4.2. Viết driver để parse cấu hình node device tree vừa thêm
+- `codeExamples/device_tree/device_tree_BBB_kernel_module.c`
+- Hàm `probe`: gọi ra khi device tree và driver matching với nhau, thực hiện các đoạn code để tải 
+- Hàm `remove`: gọi khi driver được unload khỏi kernel, deinit các tài nguyên trong hàm `probe`
+- `module_platform_driver(device_tree_driver)`: khởi tạo struct của driver
+
+### 4.3. Build lại devicetree
+- Chạy script `make build_dtb` để build lại .dtb
+- Load lại file .dtb vào BBB:/boot/dtbs/$(uname -r)/
+- Khởi động lại BBB
+- Load kerner device_tree_BBB_kernel_module.ko vào parse device tree
+- Kiểm tra /proc/device-tree xem đã có node mới thêm chưa
+### Phần này chưa hoàn thiện, device tree đưa vào nhưng hàm probe không start
+
+# IX. PWM driver
+## 1. Ứng dụng của PWM
+- Điều khiển động cơ
+- Điều khiển điện áp
+## 2. TỔng quan 
+![alt text](image-7.png)
+- Để viết và điều khiển được PWM ngoại vi cần:
+    - Device tree cho PWM: define thông số hoạt động của PWM bằng device-tree
+    - Viết PWM driver: viết và build file .ko rồi load .ko vào linux
+    - Sau khi load pwm driver ko vào, os tiến hành quết danh sách device trong device-tree và tìm ra device và drive match nhau qua trường compatible -> hàm probe được gọi dể khởi tạo PWM
+
+-- 43
