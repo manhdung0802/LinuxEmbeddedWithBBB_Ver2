@@ -1,8 +1,67 @@
 # Menu
-
-- [I. Linux booting sequence](#i-linux-booting-sequence)
-- [II. Build Uboot và kernel](#ii-build-uboot-va-kernel)
-- [III. Build root file system (rootfs)](#iii-build-root-file-system-rootfs)
+## Tìm TODO để xem những phần chưa hoàn thành
+- **I. Linux booting sequence**
+  - [I. Linux booting sequence](#i-linux-booting-sequence)
+    - [1. First stage loader](#1-first-stage-loader)
+    - [2. Second program loader (Phase MLO của Uboot)](#2-second-program-loader-phase-mlo-của-uboot)
+    - [3. Uboot phase (phase 2 của Uboot)](#3-uboot-phase-phase-2-của-uboot)
+- **II. Build Uboot và kernel**
+  - [II. Build Uboot và kernel](#ii-build-uboot-va-kernel)
+    - [1. Tải compile gcc](#1-tải-compile-gcc)
+    - [2. Export ra để dễ gọi compile](#2-export-ra-để-dễ-gọi-compile)
+    - [3. Build code Uboot](#3-build-code-uboot)
+    - [4. Build kernel](#4-build-kernel)
+- **III. Build root file system (rootfs)**
+  - [III. Build root file system (rootfs)](#iii-build-root-file-system-rootfs)
+    - [1. Copy uboot, kernel, rootfs vào thẻ nhớ](#1-copy-uboot-kernel-rootfs-vào-thẻ-nhớ)
+    - [2. Copy thành phần khác vào sdcard](#2-copy-thành-phần-khác-vào-sdcard)
+- **IV. Uboot Basic Concept & Uboot architecture**
+  - [IV. Uboot Basic Concept & Uboot architecture](#iv-uboot-basic-concept--uboot-architecture)
+    - [1. Uboot](#1-uboot)
+      - [1.1 Phase 1: Rom code - first stage loader](#11-phase-1-rom-code---first-stage-loader)
+      - [1.2 Phase 2: SPL - second program loader](#12-phase-2-spl---second-program-loader)
+      - [1.3 Phase 3: TPL - third program loader](#13-phase-3-tpl---third-program-loader)
+      - [1.4 Đặt vấn đề](#14-đặt-vấn-đề)
+    - [2. Modify Uboot](#2-modify-uboot)
+      - [2.1 Tại sao cần modify Uboot](#21-tại-sao-cần-modify-uboot)
+      - [2.2 uEnv.txt - custom Uboot](#22-uenvtxt---custom-uboot)
+      - [2.3 Script uboot hoạt động như nào](#23-script-uboot-hoạt-động-như-nào)
+- **V. Linux OS structure**
+  - [V. Linux OS structure](#v-linux-os-structure)
+    - [1. Cấu trúc của Linux OS](#1-cấu-trúc-của-linux-os)
+    - [2. Build Root basic concept](#2-build-root-basic-concept)
+      - [2.1 Buildroot bao gồm:](#21-buildroot-bao-gồm)
+      - [2.2 Cách build bằng buildroot](#22-cách-build-bằng-buildroot)
+      - [2.3. Output buildroot](#23-output-buildroot)
+      - [2.4. Đọc ghi file trong linux](#24-đọc-ghi-file-trong-linux)
+        - [2.4.1. Khái niệm](#241-khái-niệm)
+        - [2.4.2. Phân loại file](#242-phân-loại-file)
+        - [2.4.3. Thao tác với file trong linux](#243-thao-tác-với-file-trong-linux)
+- **VI. Linux kernel**
+  - [VI. Linux kernel](#vi-linux-kernel)
+    - [1. Kernel](#1-kernel)
+    - [2. Kernel module](#2-kernel-module)
+      - [2.1 Khái niệm](#21-khái-niệm)
+      - [2.2 Static linking](#22-static-linking)
+      - [2.3 Dynamic linking](#23-dynamic-linking)
+      - [2.4 Kernel module example](#24-kernel-module-example)
+      - [2.5 Tương tác file trong linux](#25-tương-tác-file-trong-linux)
+      - [2.6 Device file concept](#26-device-file-concept)
+        - [2.6.1 Tạo device file](#261-tạo-device-file)
+      - [2.7. Cross Compile](#27-cross-compile)
+- **VII. BeagleBone Black**
+  - [VII. BeagleBone Black](#vii-beaglebone-black)
+    - [1. Configue pin mux](#1-configue-pin-mux)
+    - [2. Build code với kernel header](#2-build-code-với-kernel-header)
+    - [3. Code với kernel](#3-code-với-kernel)
+- **VIII. Device tree**
+  - [VIII. Device tree](#viii-device-tree)
+    - [1. Device tree là gì](#1-device-tree-là-gì)
+- **IX. PWM driver**
+  - [IX. PWM driver](#ix-pwm-driver)
+    - [1. Ứng dụng của PWM](#1-ứng-dụng-của-pwm)
+    - [2. TỔng quan](#2-tổng-quan)
+    - [3. Pin controller - cấy hình pin cho PWM](#3-pin-controller---cấy-hình-pin-cho-pwm)
 
 # I. Linux booting sequence
 Quá trình boot của linux có 3 giai đoạn chính
@@ -90,7 +149,24 @@ Quá trình boot của linux có 3 giai đoạn chính
     ```
 - Umount sdcard
     `sudo umount /media/rootfs`
-***
+
+## 3. Cấu trúc thẻ nhớ để boot được BBB
+Thẻ nhớ cần được chia thành 2 phân vùng
+### 3.1 BOOT
+- Kích thước khoảng 512MB
+- Chứa 
+    - device tree
+    - MLO
+    - u-boot.img
+    - uEnv.txt
+    - kernel image: zImage hoặc uImage
+- Cần gắn flag: boot, lba
+### 3.2 ROOTFS
+- Kích thước lớn (phần còn lại của sdcard)
+- Chứa root file system
+- rootfs lấy từ file .img -> copy nội dung trong img này vào partition ROOTFS
+
+
 # IV. Uboot Basic Concept & Uboot architecture
 ## 1. Uboot
 - [I. Linux booting sequence](#i-linux-booting-sequence)
@@ -188,40 +264,98 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
     + dd if=output/images/sdcard.img of=/dev/XXX
     + thẻ nhớ sẽ được chia thành 2 vùng 16M (để boot) và 512M (rootfs)
 
+### 2.4. Đọc ghi file trong linux
+#### 2.4.1. Khái niệm
+- Linux quy định: mọi giao tiếp với phần cứng đều phải giao tiếp qua file
+- Khi đã viết được driver, ta cần cung cấp giao diện file để app có thể đọc ghi phần cứng
+- File ở linux là:
+    - Thực thể của 1 đối tượng trong hệ điều hành
+    - Mọi đối tượng trong hđh đều phải được biểu diễn trong qua file nào đấy
+- struct của file: linux/fs.h
+- /proc : chứa các process đang chạy, mỗi process là có 1 file/folder đại diện cho nó
+#### 2.4.2. Phân loại file
+- Regular file: là file đại diện cho dữ liệu trong ổ cứng (data trong ổ cứng)
+- Directory file (file thư mục): là file mà data của nó là danh sách file chứa trong nó (chính là khái niệm folder)
+- Các loại file khác: file đại diện phần cứng, cho ngắt, ... . Điểm chung là không được lưu ở ổ cứng, chúng sẽ được tạo lại khi linux boot lên
+#### 2.4.3. Thao tác với file trong linux
+- giá trị fd bắt đầu từ số 3 trở đi vì chương trình dã mở các file fd 0,1,2 từ khi khởi động: 
+    - stdin(0)
+    - stdout(1)
+    - stderr(2)
+- Vì sao fd là số nguyên chứ không phải là con trỏ? Đó là file table
+![alt text](image-8.png)
+    - file table là bảng đính kèm cùng tiến trình
+    - mỗi ô trong table là 1 con trỏ trỏ tới địa chỉ nằm ở ram của 1 file nào đó
+    - mỗi khi mở 1 file, chương trình sẽ tìm hàng trống gần nhất nhỏ nhất chưa trỏ đến file nào, nó mở file và trả về index cho fd
+    - fd chỉ đại diện cho thứ tự lần mở, chứ không đại diện cho file đó là gì nên nếu nhiều process (không liên quan nhau) có fd là cùng 1 số thì không ảnh hưởng gì vì mỗi process có 1 file table riêng
+#### 2.4.4. Vấn đề với hàm read/write file
+- Hàm read/write đều gây block chương trình cho đến khi đọc/ghi xong
+- Cách khắc phục:
+    - Read/write bất đồng độ: dùng thư viện aio.h
+    - Tạo thread mới để đọc/ghi
+
 # VI. Linux kernel
 ## 1. Kernel
 - Hầu hết các hệ thống có ứng dụng hệ điều hành (window, linux, macos) đều có khái niệm nhân
 - Nhân là trái tim hệ điều hành, có nhiệm vụ:
     - quản lý tài nguyên hệ thống, process, task 
     - nó giống như 1 cầu nối giữa tầng người dùng với phần cứng.
+### 1.1. User space và kernel space
+![alt text](image-9.png)
+- Khi code kernel space chạy trên CPU, chế độ của CPU là chế độ toàn quyền truy cập các tài nguyên của hệ thống như memory, ngoại vi, processor, ...
+- Khi code user space chạy trên CPU, chế độ của CPU là chế độ giới hạn truy cập, nó không thể truy cập các tài nguyên như kernel space
+- Nếu user space muốn truy cập memory hoặc ngoại vi, nó phải request tới kernel sử dụng system call interface
 
 ## 2. Kernel module
 ### 2.1 Khái niệm
 - là những module được viết để thực thi trong kernel
-- nó có khả năng load và unload vào kernel
+- nó có khả năng load và unload vào kernel trong quá trình mà linux kernel đang chạy
 - có khả năng mở rộng tính năng của kernel mà không cần reboot lại cả hệ thống linux (window thì cần khởi động lại, chính vì thể nhiều hệ thống server dùng linux để tránh việc khởi động lại làm mất dữ liệu, tốn năng lượng khởi động)
 - Ưu điểm: 
     + bản thân kernel module không cần build với nhân, vì vậy giảm được size của kernel, giúp code kernel linh động hơn
     + không cần build lại kernel khi thay đổi driver, tiết kiệm thời gian, chi phí
     + Không cần reboot khi có update kernel module
 
+- `__init`: 
+    - đánh dấu cho compiler rằng hàm này được đặt trong phân đoạn bộ nhớ .init.text
+    - khi kernel module đã khởi tạo xong, linux sẽ giải phóng vùng nhớ này để lấy lại RAM
+    - nếu không xóa, thì việc khởi tạo hàng trăm kernel module sẽ chiếm 1 vùng rất lớn trên ram
+    - ngoài ra còn có `__intidata` dùng cho biến khi khởi tạo kernel module
+- `__exit`:
+    - đánh dấu cho compiler rằng hàm này được đặt trong phân đoạn bộ nhớ .exit.text
+    - loại bỏ code khỏi final kernel để giảm dung lượng
+- `printk`: 
+    - không in được số thực, đọc thêm các kiểu data tại `linux/Documentation/printk-formats.txt`
+    - cấu hình log level: TODO -> check `"C:\Users\dungx\Máy tính\Learning\1. linux-device-driver-programming-using-beaglebone-black\02 - Linux kernel module\012 printk.mp4"`
+- `dmesg | tail`: lấy phần đuôi dmesg
+- `dmesg | head`: lấy phần đầu dmesg
+- menuconfig: chạy lệnh `make ARCH=arm menuconfig` tại `ldd/source/linux_bbb_5.10.168-ti-rt-r76` để cấu hình kernel
+
 > ### Bản chất tại sao có thể load và unload kernel runtime được? Tới 2 phần linking tiếp theo
 ### 2.2 Static linking
-- Link tất cả file obj thành 1 file thống nhất
-- Tất cả code thành 1 file linking duy nhất
+- Link tất cả file obj thành 1 file thống nhất -> tăng kích thước Linux kernel image
+- Tất cả code thành 1 file linking duy nhất, không thể unload module trong runtime
 - Linking time: xảy ra ở lúc compile
 - Flexible: ít linh động, sửa 1 thì phải build lại cả chương trình
 - Hiệu năng: khởi chạy nhanh hơn dynamic linking 
+- Hàm init được gọi trong quá trình hệ thống khởi động
+- Hàm exit có thể không cần implement khi dùng static kernel vì nó được hủy khi hệ thống shutdown
 ### 2.3 Dynamic linking
 - Link các thư viện bên ngoài
 - FIle thực thi khi build ra khá nhỏ vì lúc nào cần dùng thư viện nào thì nó mới link vào chương trình
 - Linking time: xảy ra ở lúc runtime
+- Có thể load và unload bằng lệnh: insmod, rmmod
 - Flexible: linh động hơn, dễ maintain, sửa thư viện nào thì build lại thư viện đó thôi
 - Hiệu năng: khởi chạy chậm hơn static linking
+- Hàm init được gọi khi kernel module được load
 - Code example: codeExamples/dynamicLinking
 > ### Cơ chế loadable của kernel module tương tự như Dynamic linking. 
 > ### File kernel module đã build rồi load vào kernel bản chất là link code vào kernel
 > ### Người ta ưa thích dynamic linking cho kernel vì kernel nhỏ thì hệ thống load nhanh
+- Có 2 loại dynamic kernel:
+    - In tree module: là module nằm trong cây thư mục linux -> check `"C:\Users\dungx\Máy tính\Learning\1. linux-device-driver-programming-using-beaglebone-black\02 - Linux kernel module\Not done 011 Intree building.mp4"`
+    - Out of tree module: là module năm ngoài cây thư mục linux, là các kernel module tự viết rồi build .ko thông thường
+        -Ví dụ: `[14675.796696] hello_module: loading out-of-tree module taints kernel.`
 
 ### 2.4 Kernel module example
 - codeExamples/kernelModule
@@ -232,6 +366,13 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
 - Chỉ có quyền sudo mới load, unload, ... kernel (sudo -s)
 - Load kernel: `insmod kernel.ko`
 - Unload kernel: `rmmod kernel.ko`
+- Check thông tin kernel: `modinfo name.ko`
+- kbuild: là hệ thống build kernel của linux 
+- Makefile:
+    - obj-<x> := module.o -> x tương ứng là:
+        - n: do not compile
+        - y: compile as static kernel
+        - m: compile as dynamic kernel
 
 ### 2.5 Tương tác file trong linux
 - codeExamples/file_handling
@@ -265,6 +406,14 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
 - Tiết kiệm hiệu năng cho target machine vì code đã được build ở máy khác
 - `Khi cross compile kernel, phiên bản header của bbb và pc phải giống nhau`
 - `Khi cross compile app, phiên bản header để build nhỏ hơn hoặc bằng header kernel của bbb`
+
+### 2.8. Update kernel cho board
+- Vì sao Kernel cần nâng cấp? Chạy mượt hơn, bảo mật hơn, ít lỗi driver hơn, và sẵn sàng cho các công nghệ kết nối mới hơn.
+- Step update kernel:
+    - `BBB_docs/docs/016 Updating-the-latest-kernel-image-Steps.pdf`
+    - script: `https://github.com/niekiran/linux-device-driver-1/blob/master/scripts/kernel_compilation_steps.txt`
+- /lib/modules: là nơi chứa các kernel module được biên dịch dạng .ko
+
 
 # VII. BeagleBone Black
 ## 1. Configue pin mux
@@ -365,7 +514,7 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
 - Khởi động lại BBB
 - Load kerner device_tree_BBB_kernel_module.ko vào parse device tree
 - Kiểm tra /proc/device-tree xem đã có node mới thêm chưa
-### Phần này chưa hoàn thiện, device tree đưa vào nhưng hàm probe không start
+> Phần này chưa hoàn thiện, device tree đưa vào nhưng hàm probe không start
 
 # IX. PWM driver
 ## 1. Ứng dụng của PWM
@@ -378,4 +527,14 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
     - Viết PWM driver: viết và build file .ko rồi load .ko vào linux
     - Sau khi load pwm driver ko vào, os tiến hành quết danh sách device trong device-tree và tìm ra device và drive match nhau qua trường compatible -> hàm probe được gọi dể khởi tạo PWM
 
--- 43
+## 3. Pin controller - cấy hình pin cho PWM
+- Thông thường làm việc với embedded linux, người ta không cấu hình pinmux trong code c. Mà người ta dùng pin controller để cấu hình pinmux
+- Pin controler được define trong Pin controler device tree (file dts)
+- Pin controller driver được load trong thời điểm booting
+- Sau khi pin controler driver được load, nó scan toàn bộ device tree và cấu hình pin mux cho các device có pin hợp lệ
+- Để biết pin nào hợp lệ, pin controler có tài liệu pin controler binding `https://www.kernel.org/doc/Documentation/devicetree/bindings/pinctrl/pinctrl-bindings.txt`. Tài liệu này quy định cần có 2 trường:
+    - pinctrl-0: list cấu hình pin mà người dùng muốn pin controler cấu hình
+    - pinctrl-names: 
+- Sau khi câu hình xong thì build lại device tree và load vào bbb rồi reboot
+
+-- Bài 43: 5:20

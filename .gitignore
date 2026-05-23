@@ -15,3 +15,5 @@ Module.symvers
 # Clangd and compile commands
 .cache/
 .clangd/
+
+ldd/

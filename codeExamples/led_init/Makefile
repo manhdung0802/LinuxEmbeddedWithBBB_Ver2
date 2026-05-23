@@ -3,7 +3,8 @@ obj-m := led.o
 FILE1 ?= ""
 FILE2 ?= ""
 
-KERNEL_SRC = /home/as/toolLinuxEmbedded/kernelbuildscripts/KERNEL
+# KERNEL_SRC = /home/as/toolLinuxEmbedded/kernelbuildscripts/KERNEL
+KERNEL_SRC = /lib/modules/5.10.168+/build
 ccflags-y += -fno-stack-protector
 CROSS = /usr/bin/arm-linux-gnueabihf-
 
