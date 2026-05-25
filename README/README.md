@@ -382,7 +382,7 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
 - API để tương tác với file: check lại `man7.org`
 - Linux quản lý file qua file table, linux quản lý các file qua trường index và tương tác qua file nào thì cần dùng index của file đó và tìm index qua hàm open()
 
-### 2.6 Device file concept
+### 2.6 Device file and Device driver concept
 ![alt text](image-5.png)
 - Khi link kernel module vào kernel, linux sẽ tạo ra 1 device file
 - Device file là file trong linux, đại diện cho 1 module
@@ -392,13 +392,71 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
     + user tương tác với kernel module thông qua device file này
     + device file này gửi dữ liệu xuống kernel module 
     + kernel module tương tác với phần cứng
+#### 2.6.1 Device driver là gì
+![alt text](image-10.png)
+- là 1 phần của code dùng để cấu hình, điều khiển và quản lý device 
+- nó cung cấp `device file` ở /dev/ cho user space để thực hiện request tới phần cứng
+- Nếu không có device driver thì user space không thể biết cách điều khiển phần cứng
+- Khi device driver được load, nó kết nối tới kernel và dùng các service của kernel để giao tiếp với user-space
+- Hầu hết các Device Driver hiện đại đều được triển khai dưới dạng Kernel Module, nhưng không phải Kernel Module nào cũng là Device Driver.
+- Có 3 loại device driver:
+    - Character device drivers: điều khiển theo từng byte, control RTC, keyboard, sensor, gpio...
+    - Block device drivers: điều khiển 1 lượng byte lớn (vài ngàn KB, ...) control emmc, eeprom, flash
+    - Network device drivers: control wifi, ethernet
+- Các check device driver là loại gì:
+    - ls /dev
+    - cột đầu tiên:
+        - `c`: character device
+        - `b`: block device
+        - `d`: folder
 
-#### 2.6.1 Tạo device file
+#### 2.6.2 Char driver, char device and char device number
+- Device number (major & minor)
+    + code: `codeExamples/character_device_with_device_numer`
+    + Để có thể kết nối giữa userspace và kernel space, kernel sử dụng device number
+    + `a:b`: 
+        - ![alt text](image-11.png)
+        - a: major number - đăng ký với driver nào
+        - b: minor number - instance thứ b của driver
+    + Khi user space gọi tới kernel space, system call sẽ xử lý VFS(virtual file system) trong kernel space. VFS sẽ lấy device number của user đó để so sánh nó trong danh sách driver đã đăng kí và lấy ra đúng driver đang đăng ký với driver number đó
+    + device_number: 
+        - type là dev_t (typedef of u32); nó là sự kết hợp của major và minor. 12 bit chứa số major và 20 bit chứa số minor
+        - dùng MAJOR và MINOR macro trong /linux/kdev_t.h để lấy số major và minor
+        - nếu đã có major và minor, dùng MKDEV(int major, int minor) và nó sẽ trả về device_number
+    + Các API để tạo và đăng ký device number:
+        - Khi khởi tạo:
+            - /linux/fs.h/alloc_chrdev_region(): tạo device number
+            - /linux/cdev.h/cdev_init(); cdev_add();: đăng ký device với VFS
+            - /linux/device.h/class_create(); device_create();: tạo device file
+        - Khi hủy:
+            - /linux/fs.h/unregister_chrdev_region(): xóa device number
+            - /linux/cdev.h/cdev_del(): xóa đăng ký device với VFS
+            - /linux/device.h/class_destroy(); device_destroy();: xóa device file
+        - Copy data từ user: 
+            - /linux/uaccess.h: copy_to_user(), copy_from_user()
+        - Ngoài ra, để đơn giản hóa, có thể dùng linux/miscdevice.h -> example: `codeExamples/device_file/device_file_kernel_module.c`
+
+#### 2.6.3 Device file
+- Device file được tạo ra từ device driver
 - codeExamples/device_file
 - Có 3 cách tạo device file
     - dùng command mknod
     - dùng thư viện udev
     - dùng Misc module: build 1 kernel module dạng misc module
+- **struct inode:** đại diện cho 1 tệp vật lý trên hệ thống, giữ thông tin chung như tên tệp, số inode (định danh mà VFS dùng để nhận diện tệp)
+- **struct file_operations:** chứa các con trỏ hàm đến các phương thức hoạt động của driver
+    - open
+    - close
+    - read, write: param của read có `char __user *buff`, __user đặt trước để cảnh báo rằng đây là con trỏ user, nó không được tin tưởng trong kernel space và không được lấy giá trị trực tiếp -> bắt buộc dùng copy_from_user, copy_to_user
+    - llseek: thay đổi file position
+- **struct file:** đại diện cho 1 tệp đang mở bởi 1 tiến trình
+- **Cơ chế hoạt động của system call open:**
+    - Khi 1 device file được tạo, VFS sẽ khởi tạo inode của nó với 1 hàm dummy là chardev_open
+    - Khi user gọi open, kernel tạo ra 1 file object
+    - Hàm chardev_open sau đó tìm kiếm cdev thực tế tương ứng với device number, lấy các function thực sự của driver thay thế vào file object đó
+    - Cuối dùng, hàm open thực tế của driver  sẽ được gọi
+
+// TODO: 03.009
 
 ### 2.7. Cross Compile
 - codeExamples/cross_compile
