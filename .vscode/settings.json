@@ -9,5 +9,10 @@
         "**/Module.symvers": true,
         "**/.clangd": true,
         "**/.cache": true
+    },
+    "[c]": {
+        "editor.tabSize": 4,
+        "editor.insertSpaces": false,
+        "editor.detectIndentation": false
     }
 }

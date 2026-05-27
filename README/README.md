@@ -435,9 +435,14 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
         - Copy data từ user: 
             - /linux/uaccess.h: copy_to_user(), copy_from_user()
         - Ngoài ra, để đơn giản hóa, có thể dùng linux/miscdevice.h -> example: `codeExamples/device_file/device_file_kernel_module.c`
+- **struct cdev:**
+    - struct này đươch VFS âm thầm sử dụng mỗi khi user tương tác với device file
+    - cdev_init dùng để đăng ký file_operation với cdev
+    - cdev_add dùng để đăng ký major minor với cdev
 
 #### 2.6.3 Device file
 - Device file được tạo ra từ device driver
+- Device file là cổng giao tiếp, không phải nơi lưu dữ liệu
 - codeExamples/device_file
 - Có 3 cách tạo device file
     - dùng command mknod
@@ -447,16 +452,56 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
 - **struct file_operations:** chứa các con trỏ hàm đến các phương thức hoạt động của driver
     - open
     - close
-    - read, write: param của read có `char __user *buff`, __user đặt trước để cảnh báo rằng đây là con trỏ user, nó không được tin tưởng trong kernel space và không được lấy giá trị trực tiếp -> bắt buộc dùng copy_from_user, copy_to_user
-    - llseek: thay đổi file position
+    - read: `ssize_t read(struct file *filp, char __user *buff, size_t count, loff_t *f_pos)`
+        + param của read có `char __user *buff`, __user đặt trước để cảnh báo rằng đây là con trỏ user, nó không được tin tưởng trong kernel space và không được lấy giá trị trực tiếp -> bắt buộc dùng copy_from_user, copy_to_user
+        + cần check count phải nhỏ hơn DEV_MEM_SIZE (512 byte - giá trị mình tự define)
+        + nếu f_pos + count > DEV_MEM_SIZE thì count = DEV_MEM_SIZE - f_pos
+        + copy count từ device memory tới user buffer
+        + update f_pos
+        + return số byte đọc thành công hoặc error code
+        + nếu f_pos đứng tại EOF (end of file) -> return 0
+        + f_pos: 
+            - dùng để track file memory access 
+            - khi open 1 file, VFS set f_pos là 0
+            - user muốn đọc 6 byte từ vị trí 0, thì f_pos sẽ gán thành 6, lần đọc tiếp theo, f_pos sẽ bắt đầu từ 6. User muốn ghi 2 byte thì sẽ băt đầu ghi từ vị trí 6 và kết thúc ở 7, sau đó f_pos là 8
+            - muốn thay đổi f_pos thì dùng lseek
+            - khi f_pos trỏ ra vùng nhớ sau byte thứ 512, thì return 0 để báo người dùng rằng không thể đọc tiếp
+        + nếu dùng lệnh cat để đọc file, thì hàm read sẽ chạy mãi cho tới khi nó return 0
+        + copy_to_user() và copy_from_user()
+            + để trả data cho user space
+            + nếu return 0: thành công
+            + nếu return số: đó là số byte không thể copy
+    - write: `ssize_t write(struct file *filp, const char __user *buff, size_t count, loff_t *f_pos)`
+        + tương tự như read
+        + cần return về số byte ghi thành công hoặc error code, không nên return 0
+        + nếu f_pos đã ở cuối của mảng data thì không thể ghi vào được nữa
+    - llseek: `loff_t lseek(struct file *filp, loff_t offset, int whence)`
+        + thay đổi file position `f_pos`
+        + cần implement:
+            + whence = SEEK_SET có nghĩa là: `filp->f_pos = offset`
+            + whence = SEEK_CUR có nghĩa là: `filp->f_pos += offset`
+            + whence = SEEK_END có nghĩa là: `filp->f_pos = DEV_MEM_SIZE + offset` - cần check giới hạn bộ nhớ ở đây vì size max là DEV_MEM_SIZE
+            + whence còn có nhiều enum khác nữa
+- **error code**: 
+    - error code sẽ được gửi từ kernel space tới user space và user space sẽ biết được lỗi gì đang xảy ra
+    - xem `include/uapi/asm-generic/errno-base.h` để biết các error code
+    - return -Mã_lỗi (dấu - để biểu thị cho linux biết đây là lỗi)
 - **struct file:** đại diện cho 1 tệp đang mở bởi 1 tiến trình
 - **Cơ chế hoạt động của system call open:**
     - Khi 1 device file được tạo, VFS sẽ khởi tạo inode của nó với 1 hàm dummy là chardev_open
     - Khi user gọi open, kernel tạo ra 1 file object
     - Hàm chardev_open sau đó tìm kiếm cdev thực tế tương ứng với device number, lấy các function thực sự của driver thay thế vào file object đó
     - Cuối dùng, hàm open thực tế của driver  sẽ được gọi
-
-// TODO: 03.009
+- **Tạo device file**: `codeExamples/character_device_with_device_numer/main.c`
+    ![alt text](image-12.png)
+    - Trong linux, có thể tạo device file tự động khi có nhu cầu, nghĩa là không cần tạo thủ công device file trong /dev
+    - udev lắng nghe sự kiện uevents được tạo ra từ việc hot plug hoặc từ kernel modules khi gọi device_create()
+    - khi udev nhận thấy có uevent gửi tới, thông tin Major/Minor và tên thiết bị đã được đóng gói sẵn trong uevent đó (qua Netlink socket), udev đọc trực tiếp từ đó để tạo device file trong /dev mà không cần quét /sys/class
+    - Lưu ý: việc quét /sys/class chỉ xảy ra 1 lần duy nhất khi hệ thống khởi động (qua lệnh `udevadm trigger`) để tái tạo device file cho các thiết bị đã tồn tại trước khi udevd chạy
+    - /sys/class chứa bản đồ phân cấp thiết bị
+    - class_create(): tạo 1 folder trong /sys/class/<class_name>
+    - device_create(): tạo subfolder trong /sys/class/<class_name>, phát ra uevent để udev tạo device file
+    - Sau khi load kernel module vào, class sẽ được tạo trong /sys/class và device nằm trong /sys/class/<class_name>. Trong folder device sẽ có dev (chứa major và minor), uevent chứa major, minor và devname
 
 ### 2.7. Cross Compile
 - codeExamples/cross_compile
