@@ -486,6 +486,11 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
     - error code sẽ được gửi từ kernel space tới user space và user space sẽ biết được lỗi gì đang xảy ra
     - xem `include/uapi/asm-generic/errno-base.h` để biết các error code
     - return -Mã_lỗi (dấu - để biểu thị cho linux biết đây là lỗi)
+    - **error handling trong linux**:
+        + goto thường hạn chế dùng trong C nhưng với linux thì goto được khuyên dùng cho error handling
+        + ![alt text](image-13.png)
+        + Khi xảy ra error, cần gỡ các tài nguyên trước đó đã khởi tạo thành công để tránh chiếm tài nguyên
+        + nếu function return về con trỏ lỗi, dùng hàm IS_ERR(có phải lỗi không) kết hợp với PRT_ERR (convert pointer to error code) hoặc ERR_PTR(convert error code to pointer) trong linux/err.h để lấy giá trị lỗi từ con trỏ return của function bị lỗi đó
 - **struct file:** đại diện cho 1 tệp đang mở bởi 1 tiến trình
 - **Cơ chế hoạt động của system call open:**
     - Khi 1 device file được tạo, VFS sẽ khởi tạo inode của nó với 1 hàm dummy là chardev_open
@@ -502,6 +507,19 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
     - class_create(): tạo 1 folder trong /sys/class/<class_name>
     - device_create(): tạo subfolder trong /sys/class/<class_name>, phát ra uevent để udev tạo device file
     - Sau khi load kernel module vào, class sẽ được tạo trong /sys/class và device nằm trong /sys/class/<class_name>. Trong folder device sẽ có dev (chứa major và minor), uevent chứa major, minor và devname
+
+#### 2.6.4. Character device với nhiều device nodes
+- Có nghĩa là chỉ có 1 driver hoặc kernel module điều khiển nhiều devices -> giúp tiết kiệm bộ nhớ, dễ dàng quản lý, hỗ trợ các thiết bị giống nhau
+- driver sẽ quyết định device nào sẽ được truy cập từ user space để xử lý yêu cầu
+- Ví dụ: ![alt text](image-15.png) ![alt text](image-14.png)
+- tất cả device đều có private data của nó:
+    + Serial number
+    + Start address
+    + Size
+    + Permission: RDONLY, WRONLY, RDWR
+- để thay đổi device cần điều khiển, thì thay đổi minor
+- chỉ cần 1 class, trong class đó sẽ chứa nhiều device
+- TODO: đang xem tới 05/005 
 
 ### 2.7. Cross Compile
 - codeExamples/cross_compile
@@ -555,15 +573,49 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
     - Tránh build lại toàn project
     - Dễ phát triển driver mà không cần phụ thuộc phần cứng nhiều
 
-## 2. Platform driver
-- Là 1 driver được khởi chạy trong thời gian khởi động của OS
+## 2. Platform bus, platform devices và platform drivers
+### 2.1 Platform bus và platform device
+- bus là đường dây truyền thông tin giữa các device
+- platform bus là thuật ngữ dùng trong mô hình thiết bị linux. Nó đại diện cho các bus không thể discoverable của embedded platform như i2c, gpio, ADC, UART, ...
+- Nó là 1 pseudo bus hoặc 1 bus linux ảo
+- Hệ thống không tự nhận diện được các thiết bị này cho tới khi ta khai báo
+- Về phía linux, tất cả các device không thể discoverable đều giao tiếp qua platform bus và các thiết bị kết nối tới patform bus gọi là platform device (I2C, UART, ... là các platform device)
+- Cách mà hệ điều hành phát hiện ra phần cứng:
+    + Mỗi phần cứng (chuột, bàn phím, ...) đều có các thông số và tài nguyên riêng. Để hệ điều hành có thể điều khiển được chúng, OS bắt buộc phải biết những thông tin này
+    + Ở PC (win hoặc ubuntu), khi cắm usb hoặc VGA vào thì OS tự nhận diện ngay
+    + Ở hệ thống nhúng, các ngoại vi được kết nối với CPU qua các bus i2c, spi, ... Nhưng các bus này không có khả năng tự động nhận diện 
+    + Ta cần cung cấp thông tin thủ công thông tin các platform device này cho linux kernel qua 2 cách:
+        - Lúc complile time: viết hard code thông tin phần cứng vào code
+        - Load bằng kernel module
+        - Lúc boot time: dùng device tree
+### 2.2 Platform drivers
+- Là 1 driver được khởi chạy trong thời gian khởi động của OS dùng để điều khiển platform devices
+- Platform driver có thể là 1 character driver, hoặc 1 block driver và về cơ bản nó là 1 driver xử lý thiết bị thực
+- Người ta gọi thiết bị cố định và không tự khai báo là platform device
 - Nó phân tích device tree, biết được cấu hình hardware -> thực hiện action để khởi tạo hệ thống
 - Ví dụ: khi booting, mình cần ethernet, platform driver sẽ kiểm tra device tree để tìm cấu hình thích hợp cho ethernet -> nó sẽ khởi tạo ngoại vi tương ứng
+- Platform device cần được khai báo những thông tin sau để kernel load đúng driver điều khiển nó:
+    + Memory hoặc I/O mapped base address và range
+    + IRQ number
+    + Device identification information (thông tin định danh thiết bị)
+    + DMA channel information
+    + Device address
+    + Pin configuration
+    + Power, voltage param
+    + Other device specific data
 - Khi viết platform driver, nó có 1 số API đặc trưng:
     - `struct resource *platform_get_resource(struct platform_device *pdev, unsigned int type unsigned int n);` - đọc device tree và lấy ra 1 node trong device tree, biết được thông tin
     - `struct resource *platform_get_resource_byname(struct platform_device *pdev, unsigned int type, const char *name);` - lấy resource theo tên
     - `int platform_get_irq(struct platform_device *pdev, unsigned int n);` - get thông tin của interrupt của 1 node trong device tree
-
+- Các cách thêm platform device vào kernel:
+    + Lúc compile: -> **phương pháp này không được khuyến khích**
+        - hard code, đây là phương pháp static, thông tin phần cứng sẽ là 1 phần của kernel file (board file, driver) 
+        - Khi update device, cần rebuild lại toàn bộ kernel hoặc board file
+    + Load bằng kernel module -> **phương pháp này không được khuyến khích**
+    + Lúc boot kernel: dùng device tree -> **dùng cái này**
+        - Dữ liệu về phần cứng nằm ngoài kernel source 
+        - Device tree là phương pháp encode thông tin phần cứng
+// Todo 06.002
 ## 3. Layout của device tree
 - Bản chất nó là cấu trúc dữ liệu được build và nạp xuống bộ nhớ
 - Tại thời điểm khởi động os, khối data này được os phân tích: các hệ thống liên quan sẽ được khởi tạo

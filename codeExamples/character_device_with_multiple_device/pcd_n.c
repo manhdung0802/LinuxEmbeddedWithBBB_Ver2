@@ -5,10 +5,56 @@
 #include <linux/kdev_t.h>
 #include <linux/module.h>
 
-#define DEV_MEM_SIZE 512
+#define DEV_MEM_MAX_PCDDEV1 1024
+#define DEV_MEM_MAX_PCDDEV2 512
+#define DEV_MEM_MAX_PCDDEV3 1024
+#define DEV_MEM_MAX_PCDDEV4 512
 
-char device_buffder[DEV_MEM_SIZE]; // Tạo mảng 512 byte
-dev_t device_numer;
+#define NO_OF_DEVICES 4
+
+char device_buffder_pcddev1[DEV_MEM_MAX_PCDDEV1];
+char device_buffder_pcddev2[DEV_MEM_MAX_PCDDEV2];
+char device_buffder_pcddev3[DEV_MEM_MAX_PCDDEV3];
+char device_buffder_pcddev4[DEV_MEM_MAX_PCDDEV4];
+
+struct pcdev_private_data {
+	char *buffer;
+	unsigned size;
+	const char *serial_number;
+	int perm;
+	struct cdev cdev;
+};
+
+struct pcdrv_private_data {
+	int total_devices;
+	dev_t device_number;
+	struct class *class_pcd;
+	struct device *device_pcd;
+	struct pcdev_private_data pcdev_data[NO_OF_DEVICES];
+};
+
+struct pcdrv_private_data pcdrv_data = {
+    .total_devices = NO_OF_DEVICES,
+    .pcdev_data = {
+	[0] = {
+	    .buffer = device_buffder_pcddev1,
+	    .size = DEV_MEM_MAX_PCDDEV1,
+	    .serial_number = "PCDDEV1",
+	    .perm = 0x1, // RDONLY
+	},
+	[1] = {
+	    .buffer = device_buffder_pcddev2, .size = DEV_MEM_MAX_PCDDEV2, .serial_number = "PCDDEV2",
+	    .perm = 0x10, // WRONLY
+	},
+	[2] = {
+	    .buffer = device_buffder_pcddev3, .size = DEV_MEM_MAX_PCDDEV3, .serial_number = "PCDDEV3",
+	    .perm = 0x11, // RDWR
+	},
+	[3] = {
+	    .buffer = device_buffder_pcddev4, .size = DEV_MEM_MAX_PCDDEV4, .serial_number = "PCDDEV4",
+	    .perm = 0x11, // RDWR
+	}},
+};
 
 loff_t pcd_lseek(struct file *filp, loff_t off, int whence) {
 	loff_t temp;
@@ -98,8 +144,6 @@ int pcd_close(struct inode *inode, struct file *filp) {
 	return 0;
 }
 
-struct cdev pcd_cdev;
-
 struct file_operations pcd_fops = {
     .open = pcd_open,
     .release = pcd_close,
@@ -109,33 +153,38 @@ struct file_operations pcd_fops = {
     .owner = THIS_MODULE,
 };
 
-struct class *class_pcd;
-struct device *device_pcd;
-
 static int __init pcd_driver_init(void) {
-	pr_info("");
 	int ret;
+	pr_info("");
 
 	// 1. Create device number - major and minor
-	ret = alloc_chrdev_region(&device_numer, 0, 1, "pcd_device_number"); // mặc định để 0, còn 1 là chỉ có 1 device dùng device_number này
+	ret = alloc_chrdev_region(&pcdrv_data.device_number, 0, NO_OF_DEVICES, "pcd_device_number"); // mặc định để 0, còn NO_OF_DEVICES là do cần điều khiển 4 device
 	if (ret < 0) {
 		goto out;
 	}
+	for (int i = 0; i < NO_OF_DEVICES; i++) {
+		pr_info("%s : Device number <major>:<minor> = %d:%d\n", __func__, MAJOR(pcdrv_data.device_number + i), MINOR(pcdrv_data.device_number + i));
 
-	pr_info("%s : Device number <major>:<minor> = %d:%d\n", __func__, MAJOR(device_numer), MINOR(device_numer));
+		// 2. Initialize cdev struct - gán file operation cho cdev
+		cdev_init(&pcdrv_data.pcdev_data[i].cdev, &pcd_fops);
 
-	// 2. Initialize cdev struct - gán file operation cho cdev
-	cdev_init(&pcd_cdev, &pcd_fops);
-
-	// 3. Đăng ký cdev structure với VFS - gán major minor cho cdev
-	pcd_cdev.owner = THIS_MODULE;	      // gán ở đây vì trong cdev_init có logic reset
-	cdev_add(&pcd_cdev, device_numer, 1); // 1 vì chỉ đăng ký 1 minor
+		// 3. Đăng ký cdev structure với VFS - gán major minor cho cdev
+		pcdrv_data.pcdev_data[i].cdev.owner = THIS_MODULE; // gán ở đây vì trong cdev_init có logic reset
+		cdev_add(&pcdrv_data.pcdev_data[i].cdev, pcdrv_data.device_number + i, 1);
+	}
 
 	// 4. Tạo class device trong /sys/class
-	class_pcd = class_create(THIS_MODULE, "pcd_class");
+	pcdrv_data.class_pcd = class_create(THIS_MODULE, "pcd_class");
 
-	// 5. Tạo device file trong /dev
-	device_pcd = device_create(class_pcd, NULL, device_numer, NULL, "pcd");
+	for (int i = 0; i < NO_OF_DEVICES; i++) {
+		// 5. Tạo device file trong /dev
+		pcdrv_data.device_pcd = device_create(pcdrv_data.class_pcd, NULL, pcdrv_data.device_number + i, NULL, "pcdev-%d", i);
+		if (IS_ERR(pcdrv_data.device_pcd)) {
+			pr_err("Device created failed\n");
+			ret = PTR_ERR(pcdrv_data.device_pcd);
+			goto out;
+		}
+	}
 
 	pr_info("Init succesful\n");
 
@@ -145,10 +194,10 @@ out:
 }
 
 static void __exit pcd_driver_exit(void) {
-	device_destroy(class_pcd, device_numer);
+	device_destroy(class_pcd, device_number);
 	class_destroy(class_pcd);
 	cdev_del(&pcd_cdev);
-	unregister_chrdev_region(device_numer, 1);
+	unregister_chrdev_region(device_number, 1);
 	pr_info("Module unload\n");
 }
 
