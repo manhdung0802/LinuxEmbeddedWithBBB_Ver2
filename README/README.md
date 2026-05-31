@@ -615,7 +615,65 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
     + Lúc boot kernel: dùng device tree -> **dùng cái này**
         - Dữ liệu về phần cứng nằm ngoài kernel source 
         - Device tree là phương pháp encode thông tin phần cứng
-// Todo 06.002
+### 2.3 Đăng ký platform device và platform driver
+- Dùng macro `platform_driver_register(drv)` trong linux/platform_device.h
+- struct platform_driver ![alt text](image-16.png)
+- struct platform_device ![alt text](image-17.png)
+- Cách mà platform device và platform driver matching với nhau:
+    + Nhờ cơ chế matching của platform bus mà linux kernel thực hiện
+    + ![alt text](image-18.png)
+    + tên của platform device sẽ được hàm matching của platform bus kiểm tra xem trùng với platform driver nào khi 1 platform device hoặc 1 platform driver mới được add
+    + nếu match thì hàm probe của platform driver được gọi
+    + hàm probe có nhiệm vụ:
+        - Khởi tạo device
+        - Allocate bộ nhớ
+        - Mapping i/o memory
+        - đăng ký ngắt
+        - đăng ký device tới kernel
+        - ...
+        - return 0 nếu thành công hoặc error code
+    + Cần implement hàm remove: 
+        - huỷ tài nguyên của device khỏi kernel
+        - giải phóng bộ nhớ
+- platform device sau khi được tạo nằm ở `/sys/devices/platform`
+
+### 2.4 API cấp nhát bộ nhớ trong kernel
+- include thư viện `linux/slab.h`
+- `void* kmalloc(size_t size, gfp_t flags)`
+    + được sử dụng để cấp phát bộ nhớ trong kernel space 
+    + ![alt text](image-19.png)
+    + bộ nhớ được cấp bởi hàm này nằm liên tục trên bộ nhớ vật lý
+    + `size`: max size mà có thể được cấp bởi kmalloc là có giới hạn. Giới hạn này phụ thuộc vào phần cứng và cấu hình kernel. Tối nhất là đặt size nhỏ hơn page size (4KB)
+    + `flags`: thay đổi hành vi của bộ cấp phát bộ nhớ, GFP: get free pages
+        - %GFP_KERNEL: cấp bộ nhớ từ RAM kernel, nếu không thể cấp, có thể kernel đưa process đó vào trạng thái blocked. Khi bộ nhớ trở nên khả dụng, process sẽ được unblocked
+        - %GFP_NOWAIT
+        - %GFP_ATOMIC: yêu cầu bộ nhớ cho interupt
+        - %GFP_HIGHUSER
+    + return NULL nếu cấp phát lỗi hoặc hành công thì sẽ trả về địa chỉ ảo của ô nhớ đầu tiên được cấp
+    + Ngoài `kmalloc` còn có:
+        - `kmalloc_array()`
+        - `kcalloc`
+        - `kzalloc`
+            + `void *kzalloc(size_t size, gfp_t flags)`
+            + tương tự như kmalloc nhưng kzalloc set memory về zero
+            + việc set memory về zero để tránh con trỏ được cấp từ kmalloc nhận giá trị rác, giá trị rác này có thể trỏ vào vùng nhớ không được phép truy cập hoặc vùng chỉ đọc, làm cho các hàm ghi giữ liệu crash
+        - `krealloc`
+            + `void *krealloc(const void *p, size_t new_size, gfp_t flags)`
+            + reallocate vùng nhớ đã được allocate từ kmalloc hoặc kzalloc 
+            + `*p`: là con trỏ được tạo từ kmalloc hoặc kzalloc 
+            + `new_size`: kích thước mới cần allocate
+            + dữ liệu trong vùng nhớ của kmalloc hoặc kzalloc vẫn được giữ nguyên
+            
+- `void kfree(const void *objp)`
+    + giải phóng bộ nhớ động được cấp trước đó
+    + `objp`: là con trỏ được trả về từ `kmalloc`
+    + chỉ giải phóng con trỏ được cấp bằng `kmalloc`
+- `void kzfree(const void *objp)`
+    + tương tự kfree nhưng trả 0 về cho bộ nhớ
+
+### 2.5 Example
+- Code theo cách không dùng device tree: `codeExamples/pcd_platform_driver`
+
 ## 3. Layout của device tree
 - Bản chất nó là cấu trúc dữ liệu được build và nạp xuống bộ nhớ
 - Tại thời điểm khởi động os, khối data này được os phân tích: các hệ thống liên quan sẽ được khởi tạo
@@ -692,4 +750,4 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
     - pinctrl-names: 
 - Sau khi câu hình xong thì build lại device tree và load vào bbb rồi reboot
 
--- Bài 43: 5:20
+-- Bài 43: 5:20 youtube
