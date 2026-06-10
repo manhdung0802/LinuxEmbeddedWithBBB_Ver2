@@ -8,8 +8,23 @@
 #include <linux/cdev.h>
 #include <linux/device.h>
 #include <linux/fs.h>
+#include <linux/mod_devicetable.h>
 #include <linux/slab.h>
 
+struct device_config {
+	int config_item1;
+	int config_item2;
+};
+
+enum pcdev_names {
+	PCDEVA1X,
+	PCDEVB1X,
+};
+
+struct device_config pcdev_config[] = {
+    [PCDEVA1X] = {.config_item1 = 60, .config_item2 = 21},
+    [PCDEVB1X] = {.config_item1 = 50, .config_item2 = 22},
+};
 struct pcdev_private_data {
 	struct pcdev_platform_data pdata;
 	char *buffer;
@@ -82,30 +97,89 @@ int pcd_platform_driver_probe(struct platform_device *pcd_dev) {
 	}
 
 	// cấp phát vùng nhớ động cho dev_data
-	dev_data = kzalloc(sizeof(struct pcdev_private_data), GFP_KERNEL);
+	dev_data = devm_kzalloc(&pcd_dev->dev, sizeof(struct pcdev_private_data), GFP_KERNEL);
 	if (!dev_data) {
 		pr_info("Cannot allocate memory\n");
 		ret = -ENOMEM;
 		return ret;
 	}
 
+	// Lưu lại device data để hàm remove có thể lấy được thông tin để giải phóng
+	dev_set_drvdata(&pcd_dev->dev, dev_data);
+
 	dev_data->pdata.size = pdata->size;
 	dev_data->pdata.perm = pdata->perm;
 	dev_data->pdata.serial_number = pdata->serial_number;
 	pr_info("Device is %s %d %d", dev_data->pdata.serial_number, dev_data->pdata.size, dev_data->pdata.perm);
 
-	pr_info("A device is detected\n");
+	pr_info("Config item 1 = %d\n", pcdev_config[pcd_dev->id_entry->driver_data].config_item1);
+	pr_info("Config item 2 = %d\n", pcdev_config[pcd_dev->id_entry->driver_data].config_item2);
+
+	// cấp phát bộ nhớ động cho device buffer buffer
+	dev_data->buffer = devm_kzalloc(&pcd_dev->dev, dev_data->pdata.size, GFP_KERNEL);
+	if (!dev_data->buffer) {
+		pr_info("Cannot allocate memory\n");
+		ret = -ENOMEM;
+		goto dev_data_free;
+	}
+
+	// Get device number
+	dev_data->dev_num = pcdrv_data.device_num_base + pcd_dev->id;
+
+	cdev_init(&dev_data->cdev, &fops);
+
+	dev_data->cdev.owner = THIS_MODULE;
+	ret = cdev_add(&dev_data->cdev, dev_data->dev_num, 1);
+	if (ret < 0) {
+		pr_err("Cdev add failed\n");
+		goto buffer_free;
+	}
+
+	// tạo device file cho platform device
+	pcdrv_data.device_pcd = device_create(pcdrv_data.class_pcd, NULL, dev_data->dev_num, NULL, "pcdev-%d", pcd_dev->id);
+	if (IS_ERR(pcdrv_data.device_pcd)) {
+		pr_err("Device created failed\n");
+		ret = PTR_ERR(pcdrv_data.device_pcd);
+		goto cdev_del;
+	}
+
+	pcdrv_data.total_devices++;
+
+	pr_info("THe probe was successful\n");
 	// Có bao nhiêu device matching thì hàm probe được gọi bấy nhiêu lần
 	return 0;
+
+cdev_del:
+	cdev_del(&dev_data->cdev);
+buffer_free:
+	devm_kfree(&pcd_dev->dev, dev_data->buffer);
+dev_data_free:
+	devm_kfree(&pcd_dev->dev, dev_data);
+	return ret;
 }
+
 int pcd_platform_driver_remove(struct platform_device *pcd_dev) {
+
+	struct pcdev_private_data *dev_data = dev_get_drvdata(&pcd_dev->dev);
+	device_destroy(pcdrv_data.class_pcd, dev_data->dev_num);
+	cdev_del(&dev_data->cdev);
+
+	pcdrv_data.total_devices++;
 	pr_info("A device is removed\n");
 	return 0;
 }
 
+struct platform_device_id pcdevs_ids[] = {
+    [0] = {
+	.name = "pcdev_A1x", .driver_data = PCDEVA1X},
+    [1] = {.name = "pcdev_B1x", .driver_data = PCDEVB1X},
+    {},
+};
+
 struct platform_driver pcd_platform_driver = {
     .probe = pcd_platform_driver_probe,
     .remove = pcd_platform_driver_remove,
+    .id_table = pcdevs_ids, //cách map tên device vs driver
     .driver = {
 	.name = "pseudo-char-device",
     },

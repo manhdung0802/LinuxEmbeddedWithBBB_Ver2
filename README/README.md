@@ -572,7 +572,7 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
     - Khi update chỉ cần update file nhị phân này
     - Tránh build lại toàn project
     - Dễ phát triển driver mà không cần phụ thuộc phần cứng nhiều
-
+//todo device tree bài 001
 ## 2. Platform bus, platform devices và platform drivers
 ### 2.1 Platform bus và platform device
 - bus là đường dây truyền thông tin giữa các device
@@ -670,64 +670,39 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
     + chỉ giải phóng con trỏ được cấp bằng `kmalloc`
 - `void kzfree(const void *objp)`
     + tương tự kfree nhưng trả 0 về cho bộ nhớ
+- `devm_kmalloc(struct device *dev, size_t size, gfp_t gfp)`
+    + khi tạo vùng nhớ cho struct device động bằng API này, vùng nhớ động đó sẽ được tự động giải phóng bởi kernel khi device hoặc driver gỡ khỏi hệ thống
+    + việc dùng devm_kmalloc() sẽ bỏ được bước dùng kmalloc() và kfree()
+    + nếu muốn giải phóng ngay mà không cần chờ đến lúc driver bị gỡ -> dùng devm_kfree()
+- `devm_gpiod_get()`
+    + thay cho gpiod_get() và gpiod_put()
+- `devm_request_irq()`
+    + thay cho request_irq() và free_irq()
+- xem thêm các hàm quản lý resource: `https://www.kernel.org/doc/Documentation/driver-model/devres.txt`
 
 ### 2.5 Example
 - Code theo cách không dùng device tree: `codeExamples/pcd_platform_driver`
+- **Các bước tạo Platform Device và Platform Driver (không dùng Device Tree)**:
+    - **Bước 1: Định nghĩa cấu trúc dữ liệu chung (`platform.h`)**
+        - Tạo `struct` (ví dụ: `pcdev_platform_data`) để định nghĩa thông tin phần cứng dùng chung (như kích thước, quyền truy cập) mà cả Device và Driver đều cần biết.
+    - **Bước 2: Khởi tạo phần cứng - Platform Device (`pcd_device_setup.c`)**
+        - Khởi tạo thông số `platform_data` cho các thiết bị.
+        - Khai báo các đối tượng `struct platform_device` đại diện cho phần cứng vật lý. Điểm mấu chốt là phải đặt tên phần cứng (trường `.name`).
+        - Trong hàm `init`: Khai báo phần cứng với Kernel qua `platform_device_register()`.
+        - Trong hàm `exit`: Gỡ phần cứng qua `platform_device_unregister()`.
+    - **Bước 3: Khởi tạo phần mềm - Platform Driver (`pcd_platform_driver.c`)**
+        - Khai báo `struct platform_driver` chứa các hàm `.probe`, `.remove` và đặt trường `.driver.name` khớp hoàn toàn với `.name` của Platform Device.
+        - **Hàm `probe`** (Được gọi tự động khi tìm thấy Device tương ứng):
+            - Lấy `platform_data` ra từ struct của thiết bị.
+            - Cấp phát vùng nhớ động (`kzalloc`) để lưu thông tin riêng (hồ sơ làm việc/device context) của thiết bị đó.
+            - Dùng `dev_set_drvdata()` để lưu con trỏ của hồ sơ làm việc này vào bên trong thiết bị (giúp hàm remove sau này có thể lấy ra).
+            - Tạo character device (`cdev`), buffer, file node (`device_create`).
+        - **Hàm `remove`** (Được gọi khi ngắt thiết bị/driver):
+            - Dùng `dev_get_drvdata()` để lấy lại hồ sơ làm việc riêng của thiết bị.
+            - Giải phóng các tài nguyên đã cấp phát: `device_destroy()`, `cdev_del()`, `kfree()`.
+        - Trong hàm `init`: Đăng ký driver với Kernel qua `platform_driver_register()`.
+        - Trong hàm `exit`: Gỡ driver qua `platform_driver_unregister()`.
 
-## 3. Layout của device tree
-- Bản chất nó là cấu trúc dữ liệu được build và nạp xuống bộ nhớ
-- Tại thời điểm khởi động os, khối data này được os phân tích: các hệ thống liên quan sẽ được khởi tạo
-- Ví dụ: 
-    - thời điểm khởi động, cần khởi tạo cache, cpu, ngoại vi thì cần định nghĩa trong device tree
-    - Khi port từ board A qua B, thì thay đổi config trong device tree
-- File device tree có ký hiệu: 
-    - .dts: file device tree gốc
-    - .dtsi: file device tree có thể include vào file khác
-    - .dtb: file binary output sau khi buld dts
-    - .dtbo
-- Cấu trúc của file device tree: `https://github.com/beagleboard/devicetree-source/blob/master/arch/arm/boot/dts/am33xx.dtsi`
-    - `/ {` - Start bằng ký hiệu 
-    -  `compatible = "ti,am33xx";` - mapping giữa device tree với driver điều khiển, nếu string này match với string được khai báo ở driver thì hàm proc sẽ được gọi để khởi tạo hệ thống
-    - `ti,...`: define custom của riêng Ti, không có trong cú pháp device tree
-    - `interrupt-parent = <&intc>;` - chỉ định hệ thống dùng interrupt controller nào
-    - `#address-cells = <1>` - 1(chip 32bit) hoặc 2(chip 64bit), đặc trưng cho viết địa chỉ của register, ngoại vi
-    - `#size-cells = <1>` - 1(32bit) dải địa chỉ của chip là 1 số 32bit hoặc 2(64bit) giải địa chỉ là 2 số 32bit
-    - `chosen { };` 
-        - để rỗng như này tức là trường này được define ở nơi khác, các trường thông tin có thể được ghi đè lẫn nhau
-        - `base_dtb = "am335x-boneblack.dts`: device tree này build ra file device tree binary .dtb nào
-        - `base_dtb_timestamp = __TIMESTAMP`: chỉ thị của compiler, record lại thời gian build để biết thông tin ngày giờ build, phiên bản build
-    - `aliases {i2c0 = &i2c0, v.v`: là dạng define ngoại vi i2c, uart, spi, ...
-    - `cpus {`: khai báo thông tin cpu (bao nhiêu nhân, compatible, ...)
-    - `ocp:` - on chip peripherals - trường thuộc tính cho ngoại vi
-        - node `edma`:
-            - `edma@49000000`: sau tên là @ và đia chỉ base address
-            - `reg =`: địa chỉ baseaddress và size
-            - `reg-names`: tên của thanh ghi
-            - `interrupts = <12 13 14>`: các line interrupt 0x12 0x13 0x14 mà edma có thể dùng
-            - `interrupt-names`: tên interrupt tương ứng với line
-            - `dma-requets = <64>`: số lượng requets dma mà driver có thể hỗ trợ 
-            - `#dma-cells = <2>`: support cho cấu hình dma, 2 cell thì có 1 cell cho dma controller và 1 cell cho dma channel. 
-    - `status = "okay"`: ngoại vi này có nên enable hay không
-
-## 4. Ví dụ mẫu cho code device tree
-- `codeExamples/device_tree`
-### 4.1. Thêm cấu hình trong file dts
-- file dts có thể compile từ file dtb lấy từ BBB
-    - `dtc -I dtb -O dts -o am335x-boneblack.dts am335x-boneblack.dtb`
-- check `user-data` trong `codeExamples/device_tree/am335x-boneblack.dts`
-### 4.2. Viết driver để parse cấu hình node device tree vừa thêm
-- `codeExamples/device_tree/device_tree_BBB_kernel_module.c`
-- Hàm `probe`: gọi ra khi device tree và driver matching với nhau, thực hiện các đoạn code để tải 
-- Hàm `remove`: gọi khi driver được unload khỏi kernel, deinit các tài nguyên trong hàm `probe`
-- `module_platform_driver(device_tree_driver)`: khởi tạo struct của driver
-
-### 4.3. Build lại devicetree
-- Chạy script `make build_dtb` để build lại .dtb
-- Load lại file .dtb vào BBB:/boot/dtbs/$(uname -r)/
-- Khởi động lại BBB
-- Load kerner device_tree_BBB_kernel_module.ko vào parse device tree
-- Kiểm tra /proc/device-tree xem đã có node mới thêm chưa
-> Phần này chưa hoàn thiện, device tree đưa vào nhưng hàm probe không start
 
 # IX. PWM driver
 ## 1. Ứng dụng của PWM

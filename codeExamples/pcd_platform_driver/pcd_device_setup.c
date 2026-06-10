@@ -22,7 +22,7 @@ struct pcdev_platform_data pcdev_pdata[2] = {
 
 // 2. create 2 platform devices
 struct platform_device platform_pcdev_1 = {
-    .name = "pseudo-char-device",
+    .name = "pcdev_A1x",
     .id = 0,
     .dev = {
 	.platform_data = &pcdev_pdata[0],
@@ -31,7 +31,7 @@ struct platform_device platform_pcdev_1 = {
 };
 
 struct platform_device platform_pcdev_2 = {
-    .name = "pseudo-char-device",
+    .name = "pcdev_B1x",
     .id = 1,
     .dev = {
 	.platform_data = &pcdev_pdata[1],
