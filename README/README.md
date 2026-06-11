@@ -560,21 +560,8 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
 - Khi write trong kernel, cần read từ pin ra trước rồi mới ghi để keep những giá trị bit khác và chỉ thay đổi bit mình muốn
 
 # VIII. Device tree
-## 1. Device tree là gì
-- Sửu dụng để mô hình hóa lại các cấu hình phần cứng
-- Ví dụ stm32 có 2 ngoại vi timer, 4 ngoại vi uart, ... Mỗi ngoại vi có cấu hình đi kèm: baud rate, config,... Bình thường, mình sẽ define cấu hình của các ngoại vi ở 1 file riêng dạng struct, array, ... và nạp xuống vdk.
-    - Nhược điểm: 
-        - Muốn đổi cấu hình baudrate chẳng hạn -> cần đổi cấu hình và build lại source -> tốn thời gian update từ board này qua board khác
-        - Phức tạp, có thể cấu hình sai vì không có 1 chuẩn chung
-- Từ khó khăn trên, người ra định nghĩa ra device tree
-- Device tree là cây chứa cấu hình phần cứng, nó nằm trong bộ nhớ thiết bị dưới dạng file nhị phân (binary).
-    - File nhị phân này nằm ở 1 vùng bộ nhớ
-    - Khi update chỉ cần update file nhị phân này
-    - Tránh build lại toàn project
-    - Dễ phát triển driver mà không cần phụ thuộc phần cứng nhiều
-//todo device tree bài 001
-## 2. Platform bus, platform devices và platform drivers
-### 2.1 Platform bus và platform device
+## 1. Platform bus, platform devices và platform drivers
+### 1.1 Platform bus và platform device
 - bus là đường dây truyền thông tin giữa các device
 - platform bus là thuật ngữ dùng trong mô hình thiết bị linux. Nó đại diện cho các bus không thể discoverable của embedded platform như i2c, gpio, ADC, UART, ...
 - Nó là 1 pseudo bus hoặc 1 bus linux ảo
@@ -588,7 +575,7 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
         - Lúc complile time: viết hard code thông tin phần cứng vào code
         - Load bằng kernel module
         - Lúc boot time: dùng device tree
-### 2.2 Platform drivers
+### 1.2 Platform drivers
 - Là 1 driver được khởi chạy trong thời gian khởi động của OS dùng để điều khiển platform devices
 - Platform driver có thể là 1 character driver, hoặc 1 block driver và về cơ bản nó là 1 driver xử lý thiết bị thực
 - Người ta gọi thiết bị cố định và không tự khai báo là platform device
@@ -615,7 +602,7 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
     + Lúc boot kernel: dùng device tree -> **dùng cái này**
         - Dữ liệu về phần cứng nằm ngoài kernel source 
         - Device tree là phương pháp encode thông tin phần cứng
-### 2.3 Đăng ký platform device và platform driver
+### 1.3 Đăng ký platform device và platform driver
 - Dùng macro `platform_driver_register(drv)` trong linux/platform_device.h
 - struct platform_driver ![alt text](image-16.png)
 - struct platform_device ![alt text](image-17.png)
@@ -637,7 +624,7 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
         - giải phóng bộ nhớ
 - platform device sau khi được tạo nằm ở `/sys/devices/platform`
 
-### 2.4 API cấp nhát bộ nhớ trong kernel
+### 1.4 API cấp nhát bộ nhớ trong kernel
 - include thư viện `linux/slab.h`
 - `void* kmalloc(size_t size, gfp_t flags)`
     + được sử dụng để cấp phát bộ nhớ trong kernel space 
@@ -680,7 +667,7 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
     + thay cho request_irq() và free_irq()
 - xem thêm các hàm quản lý resource: `https://www.kernel.org/doc/Documentation/driver-model/devres.txt`
 
-### 2.5 Example
+### 1.5 Example
 - Code theo cách không dùng device tree: `codeExamples/pcd_platform_driver`
 - **Các bước tạo Platform Device và Platform Driver (không dùng Device Tree)**:
     - **Bước 1: Định nghĩa cấu trúc dữ liệu chung (`platform.h`)**
@@ -703,6 +690,51 @@ boot=echo "Running boot script use /boot/uEnv.txt"; run bootcmd;
         - Trong hàm `init`: Đăng ký driver với Kernel qua `platform_driver_register()`.
         - Trong hàm `exit`: Gỡ driver qua `platform_driver_unregister()`.
 
+## 2. Device tree
+### 2.1. Giới thiệu về device tree
+- Sửu dụng để mô hình hóa lại các cấu hình phần cứng của platform devices (non-discoverable devices)
+- Ví dụ stm32 có 2 ngoại vi timer, 4 ngoại vi uart, ... Mỗi ngoại vi có cấu hình đi kèm: baud rate, config,... Bình thường, mình sẽ define cấu hình của các ngoại vi ở 1 file riêng dạng struct, array, ... và nạp xuống vdk.
+    - Nhược điểm: 
+        - Muốn đổi cấu hình baudrate chẳng hạn -> cần đổi cấu hình và build lại source -> tốn thời gian update từ board này qua board khác
+        - Phức tạp, có thể cấu hình sai vì không có 1 chuẩn chung
+- Từ khó khăn trên, người ra định nghĩa ra device tree
+- Device tree là cây chứa cấu hình phần cứng, nó nằm trong bộ nhớ thiết bị dưới dạng file nhị phân (binary).
+    - File nhị phân này nằm ở 1 vùng bộ nhớ
+    - Khi update chỉ cần update file nhị phân này
+    - Tránh build lại toàn project
+    - Dễ phát triển driver mà không cần phụ thuộc phần cứng nhiều
+- Device tree dùng để:
+    + xác định phần cứng
+    + khởi tạo danh sách thiết bị
+
+### 2.2 Viết device tree
+- `.dts`: device tree source file
+- `.dtsi`: device tree source include file - dùng để include vào các file device tree
+- Cấu trúc của device tree:
+    + node:     
+        - đại diện cho 1 device
+        - mỗi device tree đều có 1 root node - starting point của device tree
+        - các node có mối quan hệ cha con
+        - mỗi node nắm dữ data và resource sử dụng thuộc tính properties
+        - môi device tree có duy nhất 1 root node, từ đó các node khác đều là node con
+        - mỗi device tree cần có 1 node /CPUs và ít nhất 1 node /memory
+- Nguyên tắc khi viết device tree:
+    + Đa phần mình sẽ viết device tree dạng mở rộng (addons hoặc overlays(lớp phủ)) cho board chứ không phải toàn bộ Soc
+    + Device tree cho Soc được cung cấp bởi vendor theo dạng .dtsi để include vào .dts. Ví dụ như: `am33xx.dtsi`
+    + file dtsi nào được include đầu tiên trong device tree thì nó sẽ là `top device tree file`
+    + root node trong device tree dùng để override lại 1 số thông tin trong `top device tree file`
+    + Không được chỉnh sửa file dtsi, việc override lại thông tin node ở file dts là đúng đắn khi muốn sửa thông tin node trong dtsi -> &ten_node_can_override {...};
+    + property nào được khai báo sau cùng thì thuộc tính của nó ghi đè lên các thuộc tính đã có trước của các file dtsi
+- Cú pháp và syntax:
+    + node name:
+        - node_name@unit_address: i2c@44e0b000 hoặc i2c (nếu không muốn đề cập unit_address)
+        - unit_address thường là địa chỉ base address được ghi ở thuộc tính `reg` trong node, unit_address chỉ nên được đặt nếu node có đề cập thuộc tính `reg`
+        - node name là duy nhất trong 1 file
+    + node label:
+        - i2c0: i2c@44e0b000 -> i2c0 chính là node label
+        - dùng để gọi ngắn gọn node này thay vì phải gọi node name dài
+        - node label là duy nhất trong 1 file
+//todo
 
 # IX. PWM driver
 ## 1. Ứng dụng của PWM
