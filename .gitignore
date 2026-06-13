@@ -17,3 +17,4 @@ Module.symvers
 .clangd/
 
 ldd/
+embedded-linux-bbb-labs
