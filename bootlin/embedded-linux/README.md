@@ -156,7 +156,7 @@
 - U-boot compilation:
     + cần phải chỉ định CROSS_COMPILE khi build: `make CROSS_COMPILE=arm-linux-`
     + kết quả là `u-boot.bin` hoặc `u-boot.img`, ...
-- Concept off U-boot SPL
+- Concept of U-boot SPL
     + để đáp ứng được two-state boot process, U-boot có U-boot SPL (secondary program loader)
     + SPC là bản rút gọn của U-boot, đủ nhỏ để đáp ứng được size hạn chế của first stage bootloader
     + nó được hardcode trong C code
@@ -165,4 +165,150 @@
     + cho phép phần mềm biết được ngoại vi nào khả dụng và cách kết nối chúng tới system
     + U-boot defconfigs thường chỉ định rõ device tree, nhưng nó có thể được thay đổi bằng biến DEVICE_TREE
 - Concept of U-boot environment
-    + 
+    + menuconfig được dùng để cấu hình U-boot tại thời điểm biên dịch
+    + U-boot cũng có thể được cấu hình lúc run time nhờ các environment variables
+    + Environment variables là cặp key/value
+        - Một vài biến môi trường cụ thể ảnh hưởng tới hành vi của các câu lệnh U-boot
+        - Có thể thêm biến môi trường và dùng chúng trong scripts
+    + Biến môi trường U-boot được load và modify trong RAM
+    + U-boot có 1 môi trường default được tích hợp sẵn trong binary của nó
+        - được dùng khi không thấy môi trường nào khác
+        - được xác định trong file cấu hình
+        - môi trường default đôi khi quá phức tạp
+- U-boot environment persistent storage
+    + dựa vào việc cấu hình, biến môi trường U-boot có thể được lưu tại các vùng sau để không bị mất khi restart
+        - offset cố định trong NAND flash
+        - offset cố định ở MMC hoặc USB storage, trước điểm bắt đầu của partition đầu tiên
+        - trong 1 file nằm ở partition FAT hoặc ext4
+        - trong UBI volume
+- U-boot environment commands
+    + `printenv`: show all variable
+    + `printenv <variable-name>` Shows the value of a variable
+    + `setenv <variable-name> <variable-value>` Changes the value of a variable or defines a new one, only in RAM
+    + `editenv <variable-name>` Interactively edits the value of a variable, only in RAM
+    + After an `editenv` or `setenv`, changes in the environment are lost if they are not saved persistently
+    + `saveenv`Saves the current state of the environment to storage for persistence.
+    + env command, with many sub-commands: env default, env info, env erase, env set, env save, etc.
+- U-boot memory allocation - phân bổ bộ nhớ U-boot
+    + có nhiều lệnh trong U-boot khi ghi/đọc data từ bộ nhớ có thể cần địa chỉ RAM làm tham số
+    + U-boot không có cơ chế phân phối bộ nhớ, người dùng phải tự tìm các vùng nhớ khả dụng để tải/dùng data
+    + Dùng lệnh `bdinfo` để biết start address và size của RAM
+    + Tránh dùng phần cuối của RAM, vì đó có thể đang được U-boot hoặc vùng nhớ động sử dụng
+- U-Boot memory manipulation commands - lệnh thao tác bộ nhớ U-boot
+    + các command này dùng để kiểm tra hoặc chỉnh sửa bộ nhớ, dùng cho debug, can thiệp vào thanh ghi
+    + các địa chỉ được thao tác trong U-boot là địa chỉ vật lý 
+    + hiển thị bộ nhớ: `mw [.b, .w, .l, .q] address [# of objects]`
+    + ghi bộ nhớ: `mw [.b, .w, .l, .q] address value [count]`
+    + chỉnh sửa bộ nhớ: `mm [.b, .w, .l, .q] address`
+- U-boot raw storage commands - lệnh với bộ nhớ chưa qua định dạng
+    + U-boot có thể thao tác với raw storage devices
+    + Việc U-boot thao tác với raw storage là để trong quá trình khởi động, U-boot có thể nhảy tới các địa chỉ đã lưu biến môi trường trong `U-boot environment persistent storage`
+    + Lệnh:
+        - NAND flash
+            + nand info
+            + nand read <addr> <off|partition> <size>
+            + nand erase [<off> [<size>]]
+            + nand write <addr> <off|partition> <size>
+            + ... 
+        - MMC
+            + mmc info
+            + mmc read <addr> <blk#> <cnt>
+            + mmc write <addr> <blk#> <cnt>
+            + mmc part to show partition table
+            + mmc dev to show/set current MMC device
+            + ...
+        - USB storage
+            + usb info
+            + usb read <addr> <blk#> <cnt>
+            + usb write <addr> <blk#> <cnt>
+            + usb part
+            + usb dev
+            + More: help usb
+- U-Boot filesystem storage commands
+    + U-boot support nhiều filesystems, danh sách hỗ trợ dựa vào việc cấu hình U-boot
+    + Lệnh này giúp U-boot hiểu được cấu trúc và tệp tin trong các phân vùng đã định dạng (FAT, ext4,...)
+        - Duyệt file: `ls` (ls mmc 0:1 - danh sách file tại bộ nhớ mmc, device 0, partition 1)
+        - Xem thông tin phân vùng `size`
+        - Nạp dữ liệu vào RAM để chuẩn bị boot: `load`
+- U-boot networking
+    - trang 149/522 embedded-linux-slides.pdf
+    - load/đọc file từ network
+    - TFTP - Trivial File Transfer Protocol
+        - trang 150/522 embedded-linux-slides.pdf
+- Script in environment varriables
+    + biến môi trường có thể chứa 1 đoạn script nhỏ để thực thi 1 vài lệnh và test kết quả của command
+        - hữu ích khi muốn tự động boot hoặc nâng cấp processed
+        - có thể kết hợp nhiều lệnh bằng dấu `;` ở cuối mỗi lệnh
+        - dùng `if`, `then`, `else`, `fi` để test 
+        - chạy script bằng lệnh `run <variable-name>`
+        - reference biến bằng `$variable-name`
+        - ví dụ: `setenv bootcmd tftp 0x21000000 zImage; tftp 0x22000000 dtb; bootz 0x21000000 - 0x22000000'`
+- U-boot booting commands
+    + Lệnh để boot linux kernel image
+        - `bootz`: boot file zImage
+            + `bootz [addr [initrd[:size]] [fdt]]`
+                - addr: địa chỉ của kernel image trong RAM
+                - initrd: địa chỉ của initrd hoặc initramfs
+                - fdt: địa chỉ của Devcei tree được pass vào Linux kernel
+        - `booti`: boot file Image
+        - `bootm`: boot kernel image với legacy U-boot header
+        - `zboot`: boot file bzImage
+    + Biến môi trường quan trọng
+        - `bootcmd`: danh sách các lệnh được thực thi tự động bởi U-boot sau khi đếm ngược
+        - `bootargs`: dòng lệnh Linux kernel
+- FIT image
+    + Flat Image Tree
+    + chứa format cho phép đóng gói nhiều image thành 1 cái
+        - nhiều kernel image
+        - nhiều device tree
+        - nhiều initramfs
+        - `.its`: file mô tả nội dung image
+        - `.itb`: file binary của `.its`
+- Generic Distro boot - cơ chế khởi động phân phối chung trong U-boot
+    + mỗi board/platform có môi trường U-boot của riêng nó, với custom variables/commands -> lộn xộn -> cần phải tiêu chuẩn hóa hành vi của bootloader, nếu không thì mỗi board sẽ có 1 kiểu boot khác nhau
+    + Khi kích hoạt Generic Distro boot, tại thời điểm boot, U-boot sẽ:
+        - tìm kiếm vị trí của bootable partition để xem phân vùng nào được đánh dấu cờ khởi động - `part list`
+        - với lệnh `sysboot`, U-boot sẽ tìm file /extlinux/extlinux.conf hoặc boot/extlinux/extlinux.conf mà mô tả boot như nào, và sau đó đưa ra lệnh để người dùng lựa chọn
+        - khi cấu hình đã được chọn, U-boot load và boot kernel, device tree, và initramfs images
+        - ví dụ: `part list mmc 0 -bootable bootpart; sysboot mmc 0:$bootpart any`
+    + Một số biến môi trường cần được set
+        - `kernel_addr_r`: địa chỉ trong RAM để load kernel image
+        - `ramdisk_addr_r`: địa chỉ trong RAM để load initramfs image
+        - `fdt_addr_r`: địa chỉ trong RAM để load DTB (Flattened device tree)
+        - `pxefile_addr_r`: địa chỉ trong RAM để load file config, thường là extlinux.conf
+        - `boootfile`: đường dẫn của file config (Ví dụ: `/boot/extlinux/extlinux.conf`)
+## 7. TF-A: trusted firmware
+- Concept of FIP
+    + FIP là firmware image package, là concept do TF-A quản lý
+    + Là 1 định dạng đóng gói dữ liệu được định nghĩa và sử dụng bởi TF-A
+    + nhiệm vụ làm vỏ bọc để chứa BL33 (no-trusted firmware)
+- TF-A
+    + không dùng Kconfig để cấu hình
+    + tất cả cấu hình được dựa vào biến mà pass vào cùng lệnh `make`
+- Configure TF-A: important variables
+    + `CROSS_COMPILE`
+    + `ARCH`
+    + `ARM_ARCH_MAJOR` = 7 cho ARMv7 hoặc 8 cho ARMv8  
+    + `PLAT` SoC family, any directory name in plat that contains platform.mk
+    + AARCH32_SP, the Secure Payload, specific to ARMv7. Either OP-TEE or the built-in SP-MIN provided by TF-A
+    + `DTB_FILE_NAME`, path to the Device Tree describing our board
+    + `BL33`, path to the second stage bootloader, usually U-Boot, to include in the FIP image
+    + Specific to STM32MP1
+        - `BL33_CFG`, path to the U-Boot Device Tree `u-boot.dtb`
+        - `STM32MP_SDMMC=1`, enable support for SD card/eMMC in TF-A
+## 8. Cách build U-boot
+- export CROSS_COMPILE=arm-linux-gnueabihf-
+- make am335x_evm_defconfig
+- make menuconfig
+- make DEVICE_TREE=am335x-boneblack
+- truyền file qua U-boot bằng tftp thì đặt file ở Ubuntu /srv/tftp
+
+# Linux kernel introduction
+## 1. Linux kernel in the system
+![alt text](image-8.png)
+- Linux kernel đóng vai trò cầu nối giữa tầng app và phần cứng
+## 2. Linux kernel main roles
+- Linux kernel quản lý tất cả phần cứng (CPU, memory, I/O)
+- cung cấp API để cho phép user space và libraries truy cập vào phần cứng
+- quản lý truy cập đồng thời và sử dụng tài nguyên từ các ứng dụng
+## 3. System calls
