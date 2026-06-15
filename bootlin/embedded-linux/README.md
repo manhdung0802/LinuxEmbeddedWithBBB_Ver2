@@ -82,6 +82,46 @@
     + ROM code cung cấp cơ chế phục hồi, cho phép nạp firmware cho bo mạch không có bootloader hoặc bootloader bị hỏng, thường bằng giao thức riêng cho nhà sản xuất thông qua UART hoặc USB
     + Nó thường cho phép đẩy 1 bootloader mới vào RAM, giúp việc nạp bootloader có thể thực hiện tại được
     + 1 số tool của các vendor: STM32 cube, SAM-BA, Snagboot `https://github.com/bootlin/snagboot`,...
+- Booting sequence
+Power On
+    │
+    ▼
+┌──────────┐      1. Đọc chân Boot Pins & Khởi tạo SRAM
+│ ROM Code │ ──────────────────────────────────────────────┐
+└────┬─────┘                                               │
+     │ 2. Tải MLO/SPL vào SRAM                             ▼
+     │──────────────────────────────────────────────> ┌─────────┐
+     │                                                │  SRAM   │
+     │ 3. Nhảy đến SRAM & nhường quyền                └────┬────┘
+     │─────────────────────────────────────────────┐       ▲
+     ▼                                             │       │
+┌──────────┐                                       ▼       │ 4. Cấu hình &
+│   SPL    │ ──────────────────────────────────────────────┘    Kích hoạt RAM
+│  (MLO)   │
+└────┬─────┘ 5. Tải file u-boot.img vào RAM (DDR)
+     │──────────────────────────────────────────────> ┌─────────┐
+     │                                                │   RAM   │
+     │ 6. Nhảy đến RAM & nhường quyền                 │  (DDR)  │
+     │─────────────────────────────────────────────┐  └────┬────┘
+     ▼                                             │       ▲
+┌──────────┐                                       ▼       │
+│  U-Boot  │ ──────────────────────────────────────────────┘
+└────┬─────┘ 7. Nạp Kernel (zImage) + DTB (.dtb) vào RAM
+     │                                                     
+     │ 8. Thực hiện lệnh 'bootz' để kích nổ Kernel          
+     │─────────────────────────────────────────────┐
+     ▼                                             │
+┌──────────┐                                       ▼
+│  Linux   │ <─────────────────────────────────────┘
+│  Kernel  │ 9. Khởi tạo Driver, Mount Real Rootfs (eMMC/SD)
+└────┬─────┘
+     │ 10. Chạy tiến trình đầu tiên (PID 1)
+     ▼
+┌──────────┐
+│  init /  │ 11. Chạy các dịch vụ nền (Services), Mở cổng Serial
+│ systemd  │ ──────────────────────────────────────────────> [ Login Prompt ]
+└──────────┘
+
 ## 3. Bootloaders - giới thiệu 1 số bootloader phổ biến
 - GRUB - Grand Unified Bootloader:
     + là bootloader của GNU project
@@ -312,3 +352,79 @@
 - cung cấp API để cho phép user space và libraries truy cập vào phần cứng
 - quản lý truy cập đồng thời và sử dụng tài nguyên từ các ứng dụng
 ## 3. System calls
+- Interface giữa kernel space và user space là các lệnh system calls
+- có khoảng 400 lệnh system call: lệnh với file, network, process management, ...
+- Các lệnh system call này được đóng gói trong C library và user space thường dùng các API trong trong C library để giao tiếp với kernel
+## 4. Pseudo filesystems
+- Linux thể hiện thông tin system và kernel ở userspace thông qua pseudo filesystems, hay còn gọi là virtual filesystems
+- Pseudo filesystems cho phép app thấy được thư mục, file mà không tồn tại trong bộ nhớ thực
+- Pseudo filesystems quan trọng nhất là:
+    + /proc: chứa các process
+    + /sys: mô tả hệ thống dạng device tree được kết nối bằng các bus
+## 5. Linux kernel sources
+- `https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/`
+- Stable: `https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git`
+- Linux kernel size and structure
+    + Source code Linux tầm 80k file, 35M dồng, nặng 1.3Gb, nhưng Linux kernel chỉ nặng vài MB -> Lý do là bởi Linux source chứa nhiều device drivers, network protocol, filesystems, ..., còn phần lõi thì rất nhỏ
+## 6. Kernel configuration
+- Kernel chứa hàng ngàn device drivers, filesystem drivers, ...
+- Có hàng ngàn tùy chọn cho kernel, được lựa chọn để build kernel
+- Kernel configuration là quá trình set các tùy chọn mà user muốn kernel được build ra sao
+- Tùy chọn phụ thuộc vào:
+    + Kiến trúc của target, hardware
+    + Khả năng mà mình muốn cấp cho kernel
+- Kernel configuration và build system dựa vào nhiều Makefiles
+    + người dùng chỉ tương tác với Makefile ở thư mục gốc của kernel source
+    + `make <target>`
+- Cấu hình và build: 
+    + Initial configuration:
+        - `make name_defconfig`: cấu hình linux kernel theo thiết lập sẵn của từng file defconfig, lệnh này sẽ tạo ra file `.config`
+        - `make menuconfig`: cấu hình thêm tùy chỉnh
+        - có thể dùng `make savedefconfig` để lưu lại tùy chỉnh dạng file `name_defconfig`
+    + `make ARCH=arm CROSS_COMPILE=arm-linux-...` hoặc `export ARCH=arm, export CROSS_COMPILE=arm-linux-..., make`
+    + Cần chỉ rõ kiến trúc cần build cho kernel: `ARCH=arm`, nếu không thì mặc định kernel build system sẽ build cho máy host
+    + Lựa chọn compile: native compiler (gcc) hoặc cross compiler (arm-linux-)
+        - Nếu build với Clang thì set LLVM thành 1
+- Built-in or Module?
+    + kernel image là 1 file đơn, là output của việc link tất cả object file liên quan tới tính năng được enable trong việc cấu hình. Đây là file được load vào RAM bởi bootloader. Tất cả các tính năng khả dụng ngay lập tức khi kernel start, tại thời điểm không có filesystem tồn tại 
+    + 1 vài tính năng có thể được compile dạng module
+        - load/unload lúc runtime
+        - mỗi module được thể hiện qua device file
+        - Không thể boot sớm module vì thời điểm boot không có filesystem nào
+- Kernel option types - các kiểu dữ liệu trong Kconfig
+    + có nhiều kiểu cấu hình kernel, được define trong file Kconfig, rất hữu ích để phân biệt giữa kernel build từ nhiều options
+    + `bool` option: 
+        - true: thêm tính năng vào kernel
+        - false: loại bỏ tính năng khỏi kernel
+    + `tristate` options:
+        - true: thêm tính năng vào kernel image
+        - module: thêm tính năng như 1 kernel module
+        - false: loại bỏ tính năng
+    + `int` options: chỉ định các giá trị số nguyên
+    + `hex` options: chỉ định các giá trị số hex, ví dụ CONFIG_PAGE_OFFSET=0xC0000000
+    + `string` options: chỉ định giá trị string, ví dụ CONFIG_LOCALVERSION=-no-network
+- Kernel option dependencies
+    + Giả sử việc bật driver network yêu cầu network stack phải được bật, vì vậy có 2 cách cấu hình trong file Kconfig
+        ```
+        B sẽ không hiện cho đến khi A được enable
+        config B
+            depends on A
+        ```
+        ```
+        Khi A được enable, B sẽ enable theo
+        config A
+            select B
+        ```
+- xconfig
+    + `make xconfig`
+    + là 1 giao diện đồ họa để cấu hình kernel
+    + yêu cầu phải có gói `qtbase5-dev`
+- menuconfig
+    + `make menuconfig`
+- make oldconfig
+    + `make oldconfig`
+    + hữu ích khi nâng cấp .config từ bản kernel trước đó
+    + Nếu bạn chỉnh sửa tệp .config bằng tay, việc chạy lệnh `make oldconfig` sau đó sẽ rất hữu ích, để thiết lập giá trị cho các tham số mới có thể xuất hiện do thay đổi phụ thuộc.
+- Nếu muốn trở về bản .config cũ, dùng file `.config.old`
+
+# Compiling and installing the kernel
