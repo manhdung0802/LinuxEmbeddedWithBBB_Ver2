@@ -427,4 +427,70 @@ Power On
     + Nếu bạn chỉnh sửa tệp .config bằng tay, việc chạy lệnh `make oldconfig` sau đó sẽ rất hữu ích, để thiết lập giá trị cho các tham số mới có thể xuất hiện do thay đổi phụ thuộc.
 - Nếu muốn trở về bản .config cũ, dùng file `.config.old`
 
-# Compiling and installing the kernel
+## 7. Compiling and installing the kernel
+- make -jX (X là số nhân của CPU)
+- recompile nhanh hơn -> dùng `export CROSS_COMPILE="ccache arm-linux"`
+- Kernel compilation results - output của compile kernel
+    + `arch/<arch>/boot/Image`: file kernel có thể boot
+    + `arch/<arch>/boot/*Image`: file kernel nén có thể boot
+        - bzImage: cho x86
+        - zImage: cho arm
+        - Image.gz: cho RISC-V
+    + `arch/<arch>/boot/dts/<vendor>/*.dtb`: file device tree blob (file binary của device tree)
+    + Các file .ko của kernel module, nằm rải rác trong source kernel
+    + `vmlinux`: file raw kernel image, định dnagj ELF, hữu ích để debug
+- Kernel installation: native case - máy host
+    + `sudo make install`: install kernel cho máy host
+    + Sau khi chạy lệnh trên, hệ thống sẽ: 
+        - tạo file /boot/vmlinuz-<version>: file nén kernel image, giống với arch/<arch>/boot
+        - tạo file /boot/System.map-<version>: chứa địa chỉ cho mục đích debug
+        - tạo file /boot/config-<version>: cấu hình của kernel này
+    + Ở GNU/Linux thường sẽ chạy 1 công cụ cấu hình bootloader để kernel mới có thể được load ở lần boot tiếp theo
+- Kernel installation: embedded case
+    + Không có quy chuẩn chung cho việc deploy kernel ở hệ thống nhúng
+    + Vì vậy việc đưa kernel vào target thường được cấu hình qua các hệ thống build (yocto, buildroot,...)
+- Module installation: native case
+    + `sudo make modules_install`
+    + Cài tất cả module vào /lib/modules/<version>/
+        - `kernel`: module .ko file
+        - `modules.alias`,`modules.alias.bin`: file chứa bí danh 
+        - `modules.dep`, `modules.dep.bin`: file quản lý mức độ phụ thuộc giữa các module
+        - `modules.symbols`, `modules.symbols.bin`: file khai báo ký hiệu thuộc module nào
+        - `modules.builtin`: danh sách modules được build thẳng vào cùng kernel
+- Module installation: embedded case
+    + `make INSTALL_MOD_PATH=<dir>/ modules_install`: dir: đường dẫn chứa root file system trong target
+- Kernel cleanup targets
+    + make clean: xóa hết trừ .config và các file build hỗ trợ build externel modules
+    + mrproper: xóa hết
+    + distclean: xóa nhiều hơn mrproper
+- Kernel building overview
+    + ![Kernel building overview](image-9.png)
+## 8. Booting the kernel
+- Nhiều hệ thống nhúng có nhiều phần cứng non-discoverable (serial ethernet, I2C, USB controller, ...)
+- Những phần cứng này cần được khai báo và pass vào Linux kernel, nếu không thì hardware đó coi như vô hình
+- Bootloader sẽ cung cấp khai báo này khi start kernel thông qua dạng Device tree
+- Customize your board device tree
+    + Mỗi board/architecture có device tree riêng biệt , có sẵn tại `arch/<arch>/boot/dts/<vendor>/<board>.dtb`
+    + Cần cấu hình device tree để:
+        - mô tả ngoại vi được kết nối vào bus và cấu hình chúng
+        - cấu hình pin muxing 
+        - cấu hình vài thông số hệ thống: flash partitions, kernel command line
+- Booting with U-boot
+    + Load zImage tại địa chỉ X trong memory
+    + Load .dtb tại địa chỉ Y trong memory
+    + Start kernel: boot[z|i] X - Y (dấu `-` thể hiện không có `initramfs`)
+- Kernel command line
+    + kernel có thể thay đổi hành vi mà không cần recompile bằng cách dùng các kernel command line
+    + kernel command line là 1 string mà định nghĩa nhiều tham số cho kernel
+        - rất quan trọng để cấu hình hệ thống
+        - `root=` cho root file system
+        - `console=` hiển thị log kernel
+        - ví dụ: `console=ttyS0 root=/dev/mmcblk0p2 rootwait`
+        - xem thêm command line tại `https://www.kernel.org/doc/html/latest/admin-guide/kernel-parameters.html`
+- Passing the kernel command line
+    + U-boot chứa Linux kernel command line string trong biến môi trường `bootargs`
+    + Ngay trước khi start kernel, Uboot sẽ chứa nội dung của `bootargs` vào `chosen` section của Device tree
+    + Kernel sẽ hoạt động khác nhau dựa vào cấu hình
+        - If CONFIG_CMDLINE_FROM_BOOTLOADER is set: The kernel will use only the string from the bootloader
+        - If CONFIG_CMDLINE_FORCE is set: The kernel will only use the string received at configuration time in CONFIG_CMDLINE
+        - If CONFIG_CMDLINE_EXTEND is set: The kernel will concatenate both strings
