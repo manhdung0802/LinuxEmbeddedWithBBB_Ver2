@@ -286,18 +286,20 @@ Power On
 - U-boot booting commands
     + Lệnh để boot linux kernel image
         - `bootz`: boot file zImage
-            + `bootz [addr [initrd[:size]] [fdt]]`
+            + `bootz [kernel-addr] [initramfs] [device tree addr]`
                 - addr: địa chỉ của kernel image trong RAM
-                - initrd: địa chỉ của initrd hoặc initramfs
+                - initramfs: địa chỉ của initrd hoặc initramfs
                 - fdt: địa chỉ của Devcei tree được pass vào Linux kernel
         - `booti`: boot file Image
         - `bootm`: boot kernel image với legacy U-boot header
         - `zboot`: boot file bzImage
     + Biến môi trường quan trọng
         - `bootcmd`: danh sách các lệnh được thực thi tự động bởi U-boot sau khi đếm ngược
+            + `setenv bootcmd 'tftp 0x81000000 zImage; sleep 0.1; tftp 0x82000000 am335x-boneblack.dtb; bootz 0x81000000 - 0x82000000'`
         - `bootargs`: dòng lệnh Linux kernel
 - FIT image
-    + Flat Image Tree
+    + Flat Image Tree `image.itb`
+    + xu hướng mới của việc boot bằng U-boot (hoặc các bootloader khác)
     + chứa format cho phép đóng gói nhiều image thành 1 cái
         - nhiều kernel image
         - nhiều device tree
@@ -494,3 +496,92 @@ Power On
         - If CONFIG_CMDLINE_FROM_BOOTLOADER is set: The kernel will use only the string from the bootloader
         - If CONFIG_CMDLINE_FORCE is set: The kernel will only use the string received at configuration time in CONFIG_CMDLINE
         - If CONFIG_CMDLINE_EXTEND is set: The kernel will concatenate both strings
+
+# Linux root filesystem
+## 1. Filesystems
+- filesystems được dùng để tổ chức dữ liệu và file trong bô nhớ hoặc network
+- filesystems được mount vào địa chỉ đặc biệt trong cấu trúc thư mục phân cấp này
+- điều này cho phép ứng dụng truy cập vào file và đường dẫn dễ dàng
+- Tạo 1 mountpoint: `sudo mkdir /mnt/dung`
+- `mount -t type device mountpoint`
+    + type: kiểu của filesystem
+    + device: bộ nhớ của device,network
+    + mountpoint: vùng được mount
+## 2. Root filesystem
+- là filesystem được mount vào đường dẫn root (/) -> gọi là root filesystem
+- root filesystem không được mount bằng lệnh `mount` mà nó được mount bởi kernel: `root=`
+- nếu `root=` không được chỉ định, kernel bị panic
+- root filesystem có thể được mount từ:
+    + hard disk 
+    + USB: `root=/dev/sdXY`
+    + SD card: `root=/dev/mmcblkXpY`
+    + NAND flash
+    + ...
+- Mounting rootfs over the network:
+    + Khi hoạt động qua network, root filesystem có thể là 2 thư mục ở máy host, export bởi NFC (Network file system) -> chia sẻ thư mục chứa rootfs từ máy tính sang cho board
+    + Thuận tiện cho cập nhật files trong root filesystem mà không cần khởi động lại
+    + Có thể có hệ thống root filesystem lớn
+    + Ở máy host:
+        + Thêm cấu hình sau vào file /etc/exports:
+            - `/home/tux/rootfs 192.168.1.111(rw,no_root_squash,no_subtree_check)`
+                + /home/tux/rootfs: đường dẫn chứa rootfs ở máy host
+                + 192.168.1.111: địa chỉ ip của board
+                + (rw,no_root_squash,no_subtree_check): cho phép đọc/ghi, có quyền như root, tắt kiểm tra cây thư mục con để tăng tốc truyền file
+            - sau đó chạy: `sudo exportfs -r`
+    + Ở board:
+        - kernel phải được compile với:
+            + CONFIG_NFS_FS=y
+            + CONFIG_ROOT_NFS=y
+            + CONFIG_IP_PNP=y
+        - cấu hình `root=/dev/nfs`
+        - `ip=192.168.x.y`: IP của target
+        - `nfsroot=192.168.a.b:/home/tux/rootfs/` (có thể cần thêm `,nfsvers=3,tcp` vì NFS ver 2 client và UDP có thể từ chối NFS server)
+- Root filesystem in memory: initramfs
+    + initramfs là phân vùng file system thu nhỏ được được nạp thẳng vào RAM khi boot. Kernel sẽ dùng nó để chạy các cấu hình cơ bản, nạp driver trước khi mount rootfs vào hệ thống
+    + cũng có thể boot system với filesystem trong memory initramfs
+    + Hoặc từ một kho lưu trữ CPIO được nén tích hợp vào kernel image
+    + Lợi ích trong trường hợp:
+        - khởi động nhanh các root filesystems nhỏ. Bởi vì filesystem đươc load hoàn tất tại thời điểm boot nên ứng dụng khởi động rất nhanh
+    + Để tạo 1 initramfs,
+        - Đóng gói rootfs thành định dạng `cpio`, sau đó nén lại bằng gzip
+            ```
+            cd rootfs/
+            find . | cpio -H newc -o > ../initramfs.cpio
+            cd ..
+            gzip initramfs.cpio
+            ```
+        - Tiếp tục đóng gói để U-boot đọc được:
+            ```
+            mkimage -n 'Ramdisk Image' -A arm -O linux -T ramdisk -C gzip -d initramfs.cpio.gz uInitramfs
+            ```
+            -> rồi load uInitramfs vào địa chỉ trong RAM như 0x81000000 của zImage
+        - Sau đó: `bootz kernel-addr initramfs-addr dtb-addr`
+    + Để đóng gói initramfs cùng với kernel thì cần cấu hình
+        - CONFIG_INITRAMFS_SOURCE= đường dẫn tới thư mục rootfs hoặc file cpio
+## Root filesystem organization
+- /bin: Basic programs
+- /boot: Kernel images, configurations and initramfs (only when the kernel is loaded from a filesystem, not common on non-x86 architectures)
+- /dev: Device files (covered later)
+- /etc: System-wide configuration
+- /home: Directory for the users home directories
+- /lib: Basic libraries
+- /media: Mount points for removable media
+- /mnt: Mount point for a temporarily mounted filesystem
+- /proc: Mount point for the proc virtual filesystem
+- /root: Home directory of the root user
+- /run: Run-time variable data (previously /var/run)
+- /sbin: Basic system programs
+- /sys: Mount point of the sysfs virtual filesystem
+- /tmp: Temporary files
+- /usr/bin: Non-basic programs
+- /usr/lib: Non-basic libraries
+- /usr/sbin: Non-basic system programs
+- /var: Variable data files, for system services. This includes spool directories and files, administrative and logging data, and transient and temporary files
+
+
+
+
+
+
+
+
