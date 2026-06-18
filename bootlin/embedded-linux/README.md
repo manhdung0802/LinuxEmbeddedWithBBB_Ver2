@@ -578,10 +578,90 @@ Power On
 - /usr/sbin: Non-basic system programs
 - /var: Variable data files, for system services. This includes spool directories and files, administrative and logging data, and transient and temporary files
 
+## Pseudo filesystems
+- proc virtual filesystem
+    + tồn tại từ thời điểm bắt đầu của Linux
+    + Nó cho phép:
+        - kernel hiển thị phân tích về process đang chạy trong system
+        - user điều chỉnh thông số system lúc runtime về quản lý process, quản lý memory,...
+    + được dùng bởi nhiều app user space, và được mount vào /proc
+    + Lệnh để mount proc: `mount -t proc nodev /proc`
+- proc contents:
+    + đường dẫn cho mỗi process đang chạy là /proc/<pid>, `cat /proc/3840/cmdline` thể hiện thông tin về process đó
+    + /proc/interrups, /proc/iomem, /proc/cpuinfo chứa thông tin chung về thiết bị
+    + /proc/cmdline chứa kernel command line
+    + /proc/sys chứa file có thể được ghi để điều chỉnh thông số kernel -> được gọi là `sysctl`
+- sysfs filesystem - hệ thống tệp tin sysfs
+    + sysfs giúp user space có thể nhìn thấy được phần cứng 
+    + tất cả ứng dụng sử dụng sysfs đều được mount vào /sys: `mount -t sysfs nodev /sys` - lệnh này mount tập tin sysfs vào thư mục /sys
 
+## Minimal filesystem
+- Basic applications:
+    + để có thể làm việc, hệ thống Linux cần 1 số ứng dụng để làm việc
+    + init application: chương trình user space đầu tiên chạy bởi kernel sau khi mount root filesystem 
+        - kernel cố gắng chạy lệnh trong tham số `init=` của kernel 
+        - nếu điều trên không được, nó sẽ cố gắng chạy /sbin/init, /etc/init, /bin/init và /bin/sh
+        - trong trường hợp của initramfs, kernel sẽ chỉ tìm kiếm /init. Đường dẫn khác có thể được cung cấp bởi `rdinit=`
+        - nếu tất cả điều trên không được, kernel sẽ bị panic và quá trình boot bị hỏng
+        - init application chịu trách nhiệm cho việc start tất cả ứng dụng user space và services, và init application sẽ là process cha cho các process sau đó
+    + các phần mềm cơ bản phải có để tạo lên 1 hệ thống Linux
+        - shell: để chạy lệnh
+        - basic UNIX executables: các lệnh mv, cp, mkdir, cat, ...
+        -> các thành phần này cần được tích hợp vào root filesystem
+- Overall booting process
+    + bootloader: load DTB và kernel vào RAM, start kernel
+    + kernel: 
+        - khởi tạo thiết bị phần cứng và kernel subsystems
+        - mount root filesystems được chỉ thị bởi `root=`
+        - start init application, mặc định /sbin/init
+    + /sbin/init: start các app user space khác và service
+- Overall booting process with initramfs
+    + bootloader: load initramfs, DTB, kernel vào ram, start kernel
+    + kernel:
+        - khởi tạo thiết bị phần cứng và kernel subsystems
+        - giải nén initramfs vào cache
+        - start /init nếu tìm thấy 
+    + /init: trong initramfs
+        - start sớm các lệnh user space
+        - load driver cần truy cập final root filesystem
+        - mount root filesystem và switch qua nó
+    + /sbin/init: trong root filesystem 
+        - regular system startup
 
+# BusyBox
+## Vì sao cần busybox
+- 1 hệ thống Linux cần 1 bộ chương trình cơ bản để hoạt động: init program, shell, công cụ cơ bản để quản lý file
+- Hệ thống Linux thông thường, các chương trình này được cấp bởi những project khác nhau
+- Busybox là 1 giải pháp thay thế, phổ biến với hệ thống nhúng để xây dựng 1 minimal filesystem, nó gom tất cả công cụ UNIX thành 1 file binary cực nhẹ
 
+## General purpose toolbox: BusyBox - bộ công cụ đa năng
+- viết lại nhiều lệnh UNIX 
+- chứa trong disk 1.44MB
+- tích hợp vào 1 dự án duy nhất, dễ dàng làm việc
+- Cung cấp giải pháp thực thi cho init application
 
-
-
-
+## BusyBox in the root filesystem
+- tất cả công cụ được compile vào 1 file executable là /bin/busybox
+- Liên kết tới /bin/busybox được tạo cho mỗi app mà tích hợp vào busybox
+- Với cấu hình đầy đủ tính năng, busybox nặng khoảng 500KB khi build với uClibc và 1MB khi build với glibc
+## Configuring BusyBox
+- make defconfig hoặc make allnoconfig
+- make menuconfig: chọn các command muốn compile
+## Compiling BusyBox
+- Set the cross-compiler prefix in the configuration interface:
+`Settings → Build Options → Cross Compiler prefix`
+Example: arm-linux-
+- Set the installation directory in the configuration interface:
+`Settings → Installation Options → Destination path for 'make install'`
+- Add the cross-compiler path to the PATH environment variable:
+`export PATH=$HOME/x-tools/arm-unknown-linux-uclibcgnueabi/bin:$PATH`
+- Compile BusyBox:
+`make`
+- Install it (this creates a UNIX directory structure with symbolic links to the busybox executable):
+`make install`
+## Applet highlight: busybox init - điểm nổi bật của busybox init
+- Đơn giản hơn nhiều cho với các trình khởi tạo trên máy tính bàn
+- chỉ sử dụng file cấu hình duy nhất là `/etc/inittab`, mỗi dòng trong file có định dạng `<id>::<action>::<process>`
+- Cho phép start system service tại thời điểm startup, đảm bảo các service luôn chạy trong hệ thống
+## Applet highlight: BusyBox vi - trình soạn thảo vi
+- thêm `vi` vào busybox chỉ tốn thêm 20KB
