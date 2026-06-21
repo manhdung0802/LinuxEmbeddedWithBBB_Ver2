@@ -509,6 +509,10 @@ Power On
     + mountpoint: vùng được mount
 ## 2. Root filesystem
 - là filesystem được mount vào đường dẫn root (/) -> gọi là root filesystem
+- 1 rootfs cơ bản nhất cần có:
+    + Cấu trúc thư mục: /dev, /lib, /etc, ...
+    + Thư viện hệ thống: /lib/.so
+    + Các lệnh điều khiển: lệnh để tương tác với file, process, thường được cung cấp vởi Busybox
 - root filesystem không được mount bằng lệnh `mount` mà nó được mount bởi kernel: `root=`
 - nếu `root=` không được chỉ định, kernel bị panic
 - root filesystem có thể được mount từ:
@@ -540,8 +544,10 @@ Power On
     + initramfs là phân vùng file system thu nhỏ được được nạp thẳng vào RAM khi boot. Kernel sẽ dùng nó để chạy các cấu hình cơ bản, nạp driver trước khi mount rootfs vào hệ thống
     + cũng có thể boot system với filesystem trong memory initramfs
     + Hoặc từ một kho lưu trữ CPIO được nén tích hợp vào kernel image
-    + Lợi ích trong trường hợp:
+    + Lợi ích:
         - khởi động nhanh các root filesystems nhỏ. Bởi vì filesystem đươc load hoàn tất tại thời điểm boot nên ứng dụng khởi động rất nhanh
+        - toàn bộ rootfs sẽ nằm 100% ở RAM, nên khi mất điện thì vùng này mất hết
+        - việc đưa rootfs (ở đây thường là hệ thống minimal filesystem được tạo ra từ Busybox) vào initramfs tạo tiền đề cho việc chuẩn bị môi trường cho rootfs thật
     + Để tạo 1 initramfs,
         - Đóng gói rootfs thành định dạng `cpio`, sau đó nén lại bằng gzip
             ```
@@ -556,6 +562,7 @@ Power On
             ```
             -> rồi load uInitramfs vào địa chỉ trong RAM như 0x81000000 của zImage
         - Sau đó: `bootz kernel-addr initramfs-addr dtb-addr`
+        - Log `Freeing unused kernel image (initmem) memory: 1024K` xuất hiện thì đã thành công
     + Để đóng gói initramfs cùng với kernel thì cần cấu hình
         - CONFIG_INITRAMFS_SOURCE= đường dẫn tới thư mục rootfs hoặc file cpio
 ## Root filesystem organization
@@ -586,14 +593,18 @@ Power On
         - user điều chỉnh thông số system lúc runtime về quản lý process, quản lý memory,...
     + được dùng bởi nhiều app user space, và được mount vào /proc
     + Lệnh để mount proc: `mount -t proc nodev /proc`
+    + Sau khi mount proc, có thể dùng lệnh `halt` để dừng mọi tiến trình 1 cách an toàn, dữ liệu ở RAM chưa được lưu vào ổ cứng sẽ được lưu hết, xong rồi mới dừng hệ thống
 - proc contents:
     + đường dẫn cho mỗi process đang chạy là /proc/<pid>, `cat /proc/3840/cmdline` thể hiện thông tin về process đó
     + /proc/interrups, /proc/iomem, /proc/cpuinfo chứa thông tin chung về thiết bị
     + /proc/cmdline chứa kernel command line
     + /proc/sys chứa file có thể được ghi để điều chỉnh thông số kernel -> được gọi là `sysctl`
 - sysfs filesystem - hệ thống tệp tin sysfs
+    + quản lý thông tin về phần cứng
     + sysfs giúp user space có thể nhìn thấy được phần cứng 
     + tất cả ứng dụng sử dụng sysfs đều được mount vào /sys: `mount -t sysfs nodev /sys` - lệnh này mount tập tin sysfs vào thư mục /sys
+- devtmpfs filesystem
+    + chứa các device file trong /dev
 
 ## Minimal filesystem
 - Basic applications:
@@ -661,7 +672,243 @@ Example: arm-linux-
 `make install`
 ## Applet highlight: busybox init - điểm nổi bật của busybox init
 - Đơn giản hơn nhiều cho với các trình khởi tạo trên máy tính bàn
-- chỉ sử dụng file cấu hình duy nhất là `/etc/inittab`, mỗi dòng trong file có định dạng `<id>::<action>::<process>`
+- chỉ sử dụng file cấu hình duy nhất là `/etc/inittab` (Initialization Table), mỗi dòng trong file có định dạng `<id>::<action>::<process>`, dùng để chỉ định script/lệnh nào chạy đầu tiên, 
 - Cho phép start system service tại thời điểm startup, đảm bảo các service luôn chạy trong hệ thống
+- Tệp `/etc/init.d/rcS`:
+    + script đầu tiên chạy để mount các hệ thống tệp ảo
+    + Có thể tạo nếu chưa có, nếu có rồi thì thêm script mount các hệ thống tệp ảo (pseudo system) nếu cần
 ## Applet highlight: BusyBox vi - trình soạn thảo vi
 - thêm `vi` vào busybox chỉ tốn thêm 20KB
+## Folder /lib
+- Khi biên dịch dynamic-linked (biên dich động), để các hàm ls, ps, cp, ... có thể thực hiện được thì cần lib `ld-linux-armhf.so.3`(đây là lib.so khi dùng glibc, tùy dùng C library gì mà add cho hợp lý) để có thể chạy được
+- Khi biên dịch static, thì không cần lib gì, các thư viện đã được build cùng busybox
+
+# Accessing hardware devices
+## Kernel drivers
+![alt text](image-10.png)
+- Cách mà ứng dụng tương tác với phần cứng 
+    + Application: truy cập device thông qua kernel/user-space interface hoặc qua C/C++ library
+    + Driver subsystem: cung cấp các tính năng nhóm thiết bị ra ngoài thông qua kernel/user-space interface tiêu chuẩn
+    + Device driver: trình điều khiển, quản lý thiết bị cụ thể trong kernel
+    + Bus subsystem: cung cấp API cho driver để truy cập vào bus cụ thể: i2c, spi, ...
+    + Bus controller driver: trình điều khiển bus
+![Minh họa với GPIO](image-11.png)
+- Standardized user-space interface:    
+    + Kernel drivers cung cấp interface chuẩn cho user-space
+    + tất cả device ở cùng class (ví dụ: cùng GPIO controller) đều thể hiện chung 1 tiêu chuẩn cho user-space
+    + App không cần biết thông tin về GPIO controller, chúng chỉ cần biết interface là gì
+    + App có thể dùng các library có sẵn để tận dụng các interface 
+- Có nhiều kernel subsystem cho các class device:
+    + Network: ethernet, wifi, can, 
+    + GPIO
+    + PWM
+    + Watchdog
+    + ...
+- Accessing devices directly from user-space
+    + Dù device drivers chủ yếu dùng trong kernel, nó cũng có thể được truy cập trực tiếp từ user-space
+    + Đặc biệt có ích cho các device kém tương thích với hệ thống kernel subsystem đã có
+    + Kernel cung cấp cơ chế đi kèm, dựa vào các bus của nó nên user-space có thể sử dụng để truy cập phần cứng
+        - i2c: i2c-dev
+        - spi: spidev
+        - memory-mapped: UIO
+        - USB: /dev/bus/usb, qua libusb
+- Điều gì có thể xảy đến với 1 user-space driver?
+    + Làm mất đi khả năng tích hợp và chia sẻ tài nguyên hệ thống
+    + Nếu viết 1 GPIO ở tầng user-space, các kernel driver khác không thể dùng GPIO từ GPIO controller đó nữa. Device khác dùng GPIO signal từ GPIO controller đó không thể điều khiển, cấu hình những signal đó. App sẽ hạn chế ở việc portable, cần thay đổi nhiều để hỗ trợ các loại GPIO controller
+    + Nếu viểt driver touch screen ở tầng user-space, Linux graphics stack component không thể dùng touchscreen
+    + Nếu viết driver network ở tầng user-space, vẫn có thể gửi nhận packet, nhưng không tận dụng được Linux kernel networking stack, và không có ứng dụng nào khác có thể dùng được network drvice đó
+- Upstream drivers và out-of-tree drivers
+    + Upstream drivers: 
+        - chứa hàng ngàn driver
+        - được kiểm duyệt bởi cộng đồng
+        - tuân theo các interface tiêu chuẩn 
+        - các vendor kernel thường được chứa trong kernel tree
+    + Out-of-tree drivers:
+        - các vender thường cung cấp out-of-tree driver
+        - có thể gặp lỗi khi có kernel mới
+        - thường không dùng các tiêu chuẩn interface
+        - là các driver tự tạo, giống như kernel driver .ko mình thường build
+- Finding linux kernel drivers
+    + dùng lệnh `git grep -i driver_name`
+## User-space interfaces to drivers
+- 3 interfaces chính để truy cập phần cứng được exposed bởi Linux kernel
+    + Device nodes in /dev
+    + Entries in the sysfs filesystem
+    + Network sockets and related APIs
+- Device in /dev
+    + cho phép app truy cập thiết bị phần ucnwgs
+    + Có 2 loại device trong linux kernel:
+        - Character device:
+            + Hầu hết các device không phải là block device thì được Linux coi là character device
+            + được dùng cho serial port, terminal, sound card, frame buffer
+        - Block device:
+            + là device được tạo từ các khối có kích thước cố định, có thể đọc, ghi data
+            + được dùng cho ổ cứng, usb, sdcard, ...
+
+    + Kernel nhận diện device bởi bộ 3 thông tin
+        - Type: character hay block
+        - Major: loại device
+        - Minor: device cụ thể trong loại device đó
+        - Đọc `/kernel/linux/Documentation/admin-guide/devices.txt` nếu muốn cấu hình major, minor thủ công
+- Devices: everything is a file
+    + trong UNIX, tất cả đều là file, gọi là device file
+    + device file được chứa trong /dev
+- Creating device file:
+    + Trước Linux 2.6.32, dùng `mknod /dev/<device> [c|b] major minor`
+    + devtmpfs virtual filesystem có thể được mount vào /dev, kernel tự động tạo/xóa device files trong /dev
+    + Ngoài devtmpfs, có thể dùng:
+        - udev: 
+            + nhận event từ kernel về việc xuất hiện/biến mất của device
+            + tạo/xóa device files, thay đổi quyền, load kernel tự động
+        - mdev: phiên bản nhẹ của udev, là 1 phần của busybox
+- sysfs filesystem - trong sysfs gồm có:
+    + block/ liên kết tượng trưng cho block device trong /sys/devices
+    + bus/ folder cho các loại bus, /drivers: tất cả driver cho device kết nối qua bus đó, /devices: tất cả device kết nối tới bus dó
+    + class/ folder cho device class: input, led, pwm, ...
+    + dev/ liên kết tượng trưng cho mỗi block/character device
+    + devices/ tất cả device trong hệ thống
+    + firmware/ đại diện cho firmware data, có devicetree/ và fdt/ (device tree binary)
+    + fs/ liên quan tới filesystem driver
+    + kernel/ liên quan tới kernel subsystem
+    + module/ liên quan tơi kernel modules
+    + power/ quản lý power
+- Tất cả device đều hiển thị trong sysfs, liệu chúng có interface trong /dev không?
+    + thường /dev sẽ có interface để truy cập device
+    + /sys chứa thông tin chi tiết hơn về devices
+    + tuy nhiên, vài device chỉ có sysfs interface: /sys/class/leds, /sys/class/pwm, ...
+- Accessing GPIOs - ví dụ cho GPIO
+    + Cách cũ: GPIO có thể được truy cập qua interface của /sys/class/gpios
+    + Cách mới: dùng interface `libgpiod`
+        - truy cập qua `/dev/gpiochipx`
+        - dùng C library
+        - cung cấp các công cụ dòng lệnh: `gpiodetect`, `gpioset`, ...
+- Other virtual filesystems
+    + `debugfs`: mount vào `/sys/kernel/debug`, chứa thông tin debug của kernel
+        - /sys/kernel/debug/pinctrl - cho pin mux debug
+        - /sys/kernel/debug/gpio - cho GPIO debug
+        - /sys/kernel/debug/pwm - cho PWM debug
+    + `configs`: mount vào `/sys/kernel/config`
+        - cho phép quản lý cấu của cơ chế kernel nâng cao
+## Using kernel modules
+- Tại sao lại là kernel module?
+    + Giữ cho kernel image nhỏ nhất
+    + Load driver theo nhu cầu của hardware, hỗ trợ nhiều loại device
+    + Cho phép test, debug mà không cần reboot
+    + Giảm thời gian boot, cho phép driver khởi tạo sau khi user-space đã start các app cần thiết
+- Module installation and metadata
+    + các module được đặt ở `/lib/modules/<kernel-version>`
+    + kernel module được compile thành file /ko
+    + metadata file trong `/lib/modules/<kernel-version>`:
+        - modules.dep
+        - modules.alias
+        - modules.symbols
+        - modules.builtin
+        - mỗi file có 1 file .bin đi kèm, ghi thông tin về version
+- Module dependencies: `modules.dep`
+    + Vài kernel module có thể phụ thuộc vào module khác, dựa vào kí hiệu (function hoặc data tructures) mà chúng dùng
+    + Ví dụ: module `ubifs` dựa vào `ubi` và `mtd` -> vì vậy `ubi` và `mtd` cần phải load trước `ubifs`
+    + dependencies được mô tả trong `/lib/modules/<kernel-version>/modules.dep` và `/lib/modules/<kernel-version>/modules.dep.bin`
+- Module alias: `module.alias`
+    + Mã định danh của module dùng để nhận diện thiết bị 
+    + Mã này được đối chiếu với MODALIAS được gửi từ bus của device
+- Module utilities: 
+    + `modinfo`: xem các thông tin của kernel module
+    + `lsmod`: liệt kê các kernel modules đã được load
+    + `insmod`, `rmmod`
+    + `modprobe`: modprobe <module-name>
+        - lệnh load/unload nâng cao hơn insmod, rmmod
+        - tự động giải quyết các dependencies bằng cách dùng `modules.dep`
+        - gỡ bằng lệnh `modprober -r <module-name>`, và tự giải quyết các dependencies
+- Passing parameters to modules
+    + 1 số module cho phép truyền param để điều chỉnh hành vi
+    + chủ yếu mục đích cho debug/tweaking
+    + `insmod dung.ko delay_use=0`
+    + modprobe hỗ trợ file /etc/modprobe.conf hoặc các file trong /etc/modprobe.d/: `options usb-storage delay_use=0`
+    + thông qua kernel command, khi module được build static vào kernel, `usb-storage.delay_use=0` được thực hiện
+- Modules in sysfs
+    + tất cả module đều hiển thị trong sysif, ở /sys/module/<name>
+    + Chứa nhiều thông tin về module
+## Describing non-discoverable hardware - Device tree
+- các cách để mô tả phần cứng
+    + trực tiếp trong code của bootloader
+    + dùng bảng ACPI
+    + dùng device tree
+- Device tree: from source to blob
+    + `.dts`: device tree source
+    + `dtc`: device tree compiler
+    + `.dtb`: device tree blob - cũng được gọi là FDT - flattened device tree
+- Device tree: using the blob
+    + device tree có thể được link trực tiếp trong bootloader binary (uboot, barebox)
+    + có thể được gắn vào OS bằng bootloader, bootloader có thể điều chỉnh DTB trước khi pass vào kernel
+- Device tree source nằm ở đâu?
+    + `arch/<ARCH>/boot/dts/<vendor>` trong source code Linux
+    + các device tree source này được copy vào các dự án như U-boot, barebox, ... nên có thể lấy được từ đó luôn
+- Device tree base syntax: ![alt text](image-12.png)
+- Device tree inheriance:
+    + device tree có thể chia thành nhiều file và có thể include nhau, có tính kế thừa
+    + file được include có đuôi là `.dtsi`, thông thường `.dtsi` chứa thông tin về Soc, định nghĩa phần cứng chung cho nhiều board
+    + `.dts`: chứa thông tin cụ thể về board đó
+    + Overlaying - cơ chế ghi đè: khai báo sau sẽ ghi đè lên khai báo trước, việc xếp chồng tuân theo thứ tự include các file `dtsi`, giống như ghi thêm giá trị hoặc ghi đè thuộc tính đã có của node device qua các file, file sau sẽ ghi đè hoặc thêm thuộc tính từ node ở file trước
+- Device tree design principles:
+    + Device tree mô tả phần cứng như nào, chứ không phải là cách config phần cứng như nào
+    + độc lập với hệ điều hành: đối với phần cứng cụ thể, device tree phải giống nhau khi dùng cho uboot, linux. Không cần thiết phải thay đổi device tree khi cập nhật OS
+    + device tree mô tả sự tích hợp của các thành phần phần cứng, cách mà chúng tích hợp với phần còn lại của hệ thống, không mô tả cơ chế hoạt động nội bộ của chúng
+- Device tree specifications: - cần 2 tài liệu để viết device tree
+    + `BBB_docs/device_tree/devicetree-specification-v0.4.pdf` - các cú pháp
+    + `linux/Documentation/devicetree/bindings` - chi tiết cho từng linh kiện, file `.yaml` sẽ được dùng để kiểm tra việc biên dịch và khai báo phần cứng. Trước đây, dùng file .txt để mô tả nên không có việc kiểm tra này
+- Validating device tree in linux
+    + dtc compiler chỉ kiểm tra cú pháp
+    + YAML kiểm tra ngữ nghĩa - semantic validation
+    + make dt_binding_check: kiểm tra YAML binding valid
+    + make dtbs_check: kiểm tra các file device tree đang được kích hoạt trong hệ thống
+    + make DT_SCHEMA_FILES=path/to/specific/yaml dtbs_check: đối chiếu device tree với tệp YAML cụ thể
+- The compatible property
+    + xác định mô hình lập trình của device 
+    + định nghĩa cấu hình phần cứng của node
+    + dùng để OS tìm được driver phù hợp cho device
+    + ví dụ: <vendor>,<model>
+        ```
+        compatible = "arm,armv7-timer"
+        ```
+    + compatible = "simple-bus": khi node có thuộc tính này, có nghĩa là OS hiểu đây là bus đơn giản, tất cả các sub-nodes là memory-mapped devices, và hệ thống cần quét các node device con trong node simple-bus này
+- compatible property and Linux kernel drivers
+    + Linux xác định các platform devices như sau:
+        - Các top-level node: nằm ngay sau root node và có compatible
+        - Các sub-node của simple bus: các node nằm trong node compatible = simple-bus
+        - Mỗi linux driver có bảng compatible chứa các device mà nó hỗ trợ `struct of_device_id[]`
+        - Khi chuỗi compatible của DT node match với của driver, device sẽ được liên kết với driver đó
+- reg property
+    + chứa địa chỉ base physical addr và size của memory-mapped của device 
+    + reg = <base-addr size>
+    + unit-addr phải là addr đầu tiên của reg
+        - sai4: sai@50011100 -> 50011100 là unit-addr
+- status property
+    + chỉ định device đó được dùng hay không
+    + `okay` hoặc `ok`: device được dùng
+    + `disabled`: device không được dùng
+    + trong linux, thuộc tính này quyết định linux có tạo cấu trúc thiết bị cho node đó hay không, nếu là `disabled`, linux sẽ bỏ qua và không cấp driver cho nó
+    + Trong `dtsi`, có nhiều device có status là disabled vì Soc có nhiều khối ngoại vi và không phải bo mạch nào cũng có phần cứng đó. Ta cần override status là ok cho các node mà ta muốn trong `dts`
+- pin muxing description
+    + hầu hết các Soc có nhiều tính năng ở 1 pin
+    + chức năng cụ thể ở pin được cấu hình bởi pinmux controller
+    + device tree mô tả cấu hình nào của pin là cho phép và cấu hình nào được dùng bởi các device khác nhau
+- Cells concept
+    + Là đơn vị dữ liệu cơ bản để mô tả đặc tính của phần cứng
+    + Cells là các giá trị số nguyên được biểu diễn dạng số nguyên 32bit. Nếu là số lớn hơn 32bit, ví dụ là 64bit thì sẽ dùng 2 cells
+    ```
+    soc {
+        foo32 = <0x324abcds>;
+        foo64 = <0xdeadbeef 0xbadcafe>;
+    }
+    ```
+    + Các thuộc tính có tiền tố `#` như #address-cells, #size-celss dùng để thông báo cho hệ thống biết cần bao nhiêu cell để biểu diễn 1 thông tin cụ thể trong node con
+        - #address-cells, #size-celss xác định số lượng cell được dùng trong các node con để mã hóa phần addr và size trong thuộc tính reg
+        - #interrupt-cells: Xác định số lượng cells cần thiết để mô tả một bộ định danh ngắt (interrupt specifier) cho bộ điều khiển ngắt đó
+        - ngoài ra còn có #clock-cells, #gpio-cells, #phy-cells, #pwm-cells, #dma-cells, etc
+## Discoverable hardware: USB and PCI
+- Có 1 số bus có cơ chế tự phát hiện, trong số đó là USB và PCI
+- Các thiết bị này có thể được liệt kê, và đặc tính của chúng được lấy với chỉ 1 driver hoặc bus controller
+- Lệnh:
+    + lsusb: list tất cả USB device
+    + lspci: list tất cả PCI device
+- Chúng kết hợp với kernel driver bằng product ID, vendor ID hoặc kí tự của device: device class, device sub-class
