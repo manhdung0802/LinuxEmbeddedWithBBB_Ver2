@@ -912,3 +912,19 @@ Example: arm-linux-
     + lsusb: list tất cả USB device
     + lspci: list tất cả PCI device
 - Chúng kết hợp với kernel driver bằng product ID, vendor ID hoặc kí tự của device: device class, device sub-class
+
+# Block filesystems
+## 1. Block devices
+- Block vs raw flash
+    + Storage device được chia thành 2 loại và được quản lý bởi subsystems khác nhau, filesystem khác nhau
+        - block device: có thể đọc/ghi theo từng khối riêng lẻ, theo thứ tự ngẫu nhiên mà không cần xóa: Hard disk, RAM disk, USB key, SSD, sdcard, emmc
+        - raw flash device: được điều khiển bởi 1 controller có trên SoC, chúng có thể đọc, nhưng ghi thì cần xóa dữ liệu trước đó, và việc xóa thường diễn ra ở vùng size lớn hơn block size: NOR flash, NAND flash
+- Block device list
+    + danh sách tất cả block device khả dụng trong system có thể tìm thấy ở /proc/partitions
+    + /sys/block cũng chứa thông tin về mỗi block device 
+- Partitioning
+    + block device có thể được phân vùng để chứa nhiều phần khác nhau của hệ thống
+    + partition table được chứa trong bản thân device, và được đọc và phân tích tự động bởi Linux kernel
+    + 2 loại bảng partition:
+        - MBR: legacy format
+        - GPT: new format, hỗ trợ disk lớn hơn 2TB
