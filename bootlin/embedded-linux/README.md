@@ -928,3 +928,50 @@ Example: arm-linux-
     + 2 loại bảng partition:
         - MBR: legacy format
         - GPT: new format, hỗ trợ disk lớn hơn 2TB
+- Transferring data to a block device
+    + việc truyền dữ liệu đến hoặc từ 1 block device theo các raw là cần thiết, đặc biệt là khi ghi filesystem image vào block device. Việc này ghi trực tiếp vào block device, bỏ qua các lớp filesystem
+    + các block device trong /dev cho phép truyền dữ liệu theo cách thô (raw)
+    + `dd` là tool để truyền dữ liệu thô, thường để truyền các file image lớn
+        - `dd if=/dev/mmcblk0p1 of=testfile bs=1M count=16`: truyền 16 khối dữ liệu, mỗi khối 1MB từ mmcblk0p1 vào testfile, tức là lấy 16 * 1MB dữ liệu đầu tiên trong mmcblk0p1 ra và lưu vào testfile 
+        - `dd if=testfile of=/dev/sda2 bs=1M seek=4`: truyền toàn bộ testfile vào sda2theo từng khối 1MB, bắt đầu từ offset 4MB trong sda2, tức là bỏ qua 4MB đầu tiên
+    + khi copy data thì nếu copy thông thường, file đó sẽ được đẩy vào RAM, nếu file quá lớn, có thể làm tràn ram. Vì vậy dd sẽ chia nhỏ file đó ra, mỗi lần copy thì nó đẩy 1 data có kích thước là 1MB vào RAM. Khi copy xong thì xóa trong RAM rồi lấy 1 MB tiếp. Điều này giúp RAM không bị tràn khi copy dữ liệu
+## 2. Available block filesystems (dưới đây là các hệ thống file system dùng để tổ chức, phân chia, quản lý dữ liệu)
+    + ext2:
+        - 1 trong những hệ thống tập tin (filesystem) Linux đầu tiên
+        - chi phí quản lý metadata thấp, dung lượng sử dụng RAM ít
+        - Có nguy cơ hỏng metadata nếu shutdown không đúng cách
+        - hỗ trợ tất cả tính năng là Linux cần trong 1 root filesystem: permessions, ownership, device files, ...
+        - không khuyến khích cho embedded
+    + ext3: không khuyến khích dùng
+    + journaled filesystems:
+        - được thiết kế để giữ hệ thống nhất quán sau khi system bị crash hoặc shutdown đột ngột
+        - việc ghi được mô tả đầu tiên trong nhật ký trước khi thực sự ghi vao file
+        - nhờ vào nhật ký, việc khôi phục tại thời điểm boot nhanh hơn vì các thao tác tại thời điểm shutdown không đúng các được ghi lại rõ ràng, không cần kiểm tra toàn bộ hệ thống. Nhưng không có nghĩa rằng thao tác ghi cuối cùng sẽ được ghi vào bộ nhớ
+    + ext4:
+        - hệ thống filesystem kết hợp với journaling (nhật ký)
+        - là hệ thống filesystem cho nhiều bản GNU/Linux 
+        - ext4 driver hỗ trợ tốt cho ext2, ext3
+        - tính năng đáng chú ý: mã hóa trong suốt (transparent encryption) nhưng không hỗ trợ tính năng nén
+        - kích thước phân vùng tối thiểu để kích hoạt journal là 2MB (256 inodes)
+        - kích thước phân vùng tối thiểu khi không dùng journal là 64KB (16 inodes)
+    + XFS: hiệu năng tốt với file dung lượng lớn
+    + Btrfs: 
+    + F2FS 
+    + SquashFS
+    + EROFS
+    + Benchmarks của các loại filesystem trên: ![alt text](image-13.png)
+- Compatibility filesystems - khả năng tương thích với các filesystem của các OS khác
+    + Linux hỗ trợ nhiều format filesystem khác:
+        - vfat - CONFIG_VFAT_FS: phù hợp để chứa bootloader binary. Filesystem này không hỗ trợ permission, ownership, ... và không thể dùng cho Linux rootfs
+        - exFAT - CONFIG_EXFAT_FS
+        - ntfs - CONFIG_NTFS_FS: để tương thích với filesystem của Win
+        - hfs - CONFIG_HFS_FS: để tương thích với filesystem của MAC
+- tmpfs: filesystem trong RAM - Temporary File System
+    + CONFIG_TMPFS
+    + không phải là 1 block filesystem -> không ghi data xuống ổ cứng 
+    + dùng để chứa data tạm thời trong RAM: system log file, connection data, temporary files, ...
+    + tối ưu dung lượng hơn ramdisks: dung lượng của tmpfs tự động thu nhỏ, phình to theo kích thước các file
+    + khi mount phân vùng tmpfs, cần chọn tên riêng để phân biệt với các phân vùng tmpfs khác
+        - mount -t tmpfs run /run
+        - mount -t tmpfs shm /dev/shm
+## 3. Using block filesystems
