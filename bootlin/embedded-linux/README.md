@@ -441,6 +441,7 @@ Power On
     + `arch/<arch>/boot/dts/<vendor>/*.dtb`: file device tree blob (file binary của device tree)
     + Các file .ko của kernel module, nằm rải rác trong source kernel
     + `vmlinux`: file raw kernel image, định dnagj ELF, hữu ích để debug
+- Lệnh build riêng zImage: `make zImage`
 - Kernel installation: native case - máy host
     + `sudo make install`: install kernel cho máy host
     + Sau khi chạy lệnh trên, hệ thống sẽ: 
@@ -453,7 +454,7 @@ Power On
     + Vì vậy việc đưa kernel vào target thường được cấu hình qua các hệ thống build (yocto, buildroot,...)
 - Module installation: native case
     + `sudo make modules_install`
-    + Cài tất cả module vào /lib/modules/<version>/
+    + Cài tất cả kernel module vào /lib/modules/<version>/
         - `kernel`: module .ko file
         - `modules.alias`,`modules.alias.bin`: file chứa bí danh 
         - `modules.dep`, `modules.dep.bin`: file quản lý mức độ phụ thuộc giữa các module
