@@ -1,3 +1,56 @@
+# Menu
+- [Cross-compiling toolchains](#cross-compiling-toolchains)
+    - [1. Toolchain definition](#1-toolchain-definition)
+    - [2. Architecture tuple and toolchain prefix](#2-architecture-tuple-and-toolchain-prefix)
+    - [3. Linux vs bare-metal toochain](#3-linux-vs-bare-metal-toochain)
+    - [4. Toolchain options](#4-toolchain-options)
+    - [5. Obtaining a Toolchain](#5-obtaining-a-toolchain)
+- [Bootloaders and firmware](#bootloaders-and-firmware)
+    - [1. Bootloader role](#1-bootloader-role)
+    - [2. Booting on embedded platforms](#2-booting-on-embedded-platforms)
+    - [3. Bootloaders - giới thiệu 1 số bootloader phổ biến](#3-bootloaders---giới-thiệu-1-số-bootloader-phổ-biến)
+    - [4. Trusted firmware](#4-trusted-firmware)
+    - [5. Example boot sequence on ARM](#5-example-boot-sequence-on-arm)
+    - [6. The U-boot bootloader](#6-the-u-boot-bootloader)
+    - [7. TF-A: trusted firmware](#7-tf-a-trusted-firmware)
+    - [8. Cách build U-boot](#8-cách-build-u-boot)
+- [Linux kernel introduction](#linux-kernel-introduction)
+    - [1. Linux kernel in the system](#1-linux-kernel-in-the-system)
+    - [2. Linux kernel main roles](#2-linux-kernel-main-roles)
+    - [3. System calls](#3-system-calls)
+    - [4. Pseudo filesystems](#4-pseudo-filesystems)
+    - [5. Linux kernel sources](#5-linux-kernel-sources)
+    - [6. Kernel configuration](#6-kernel-configuration)
+    - [7. Compiling and installing the kernel](#7-compiling-and-installing-the-kernel)
+    - [8. Booting the kernel](#8-booting-the-kernel)
+- [Linux root filesystem](#linux-root-filesystem)
+    - [1. Filesystems](#1-filesystems)
+    - [2. Root filesystem](#2-root-filesystem)
+    - [Root filesystem organization](#root-filesystem-organization)
+    - [Pseudo filesystems](#pseudo-filesystems)
+    - [Minimal filesystem](#minimal-filesystem)
+- [BusyBox](#busybox)
+    - [Vì sao cần busybox](#vì-sao-cần-busybox)
+    - [General purpose toolbox: BusyBox - bộ công cụ đa năng](#general-purpose-toolbox-busybox---bộ-công-cụ-đa-năng)
+    - [BusyBox in the root filesystem](#busybox-in-the-root-filesystem)
+    - [Configuring BusyBox](#configuring-busybox)
+    - [Compiling BusyBox](#compiling-busybox)
+    - [Applet highlight: busybox init - điểm nổi bật của busybox init](#applet-highlight-busybox-init---điểm-nổi-bật-của-busybox-init)
+    - [Applet highlight: BusyBox vi - trình soạn thảo vi](#applet-highlight-busybox-vi---trình-soạn-thảo-vi)
+    - [Folder /lib](#folder-lib)
+- [Accessing hardware devices](#accessing-hardware-devices)
+    - [Kernel drivers](#kernel-drivers)
+    - [User-space interfaces to drivers](#user-space-interfaces-to-drivers)
+    - [Using kernel modules](#using-kernel-modules)
+    - [Describing non-discoverable hardware - Device tree](#describing-non-discoverable-hardware---device-tree)
+    - [Discoverable hardware: USB and PCI](#discoverable-hardware-usb-and-pci)
+- [Block filesystems](#block-filesystems)
+    - [1. Block devices](#1-block-devices)
+    - [2. Available block filesystems (dưới đây là các hệ thống file system dùng để tổ chức, phân chia, quản lý dữ liệu)](#2-available-block-filesystems-dưới-đây-là-các-hệ-thống-file-system-dùng-để-tổ-chức-phân-chia-quản-lý-dữ-liệu)
+    - [3. Using block filesystems](#3-using-block-filesystems)
+- [Flash storage and filesystems](#flash-storage-and-filesystems)
+    - [1. Block devices vs raw flash devices: reminder](#1-block-devices-vs-raw-flash-devices-reminder)
+
 # Cross-compiling toolchains
 ## 1. Toolchain definition
 - Cross compiling sinh ra để:
@@ -296,7 +349,7 @@ Power On
     + Biến môi trường quan trọng
         - `bootcmd`: danh sách các lệnh được thực thi tự động bởi U-boot sau khi đếm ngược
             + `setenv bootcmd 'tftp 0x81000000 zImage; sleep 0.1; tftp 0x82000000 am335x-boneblack.dtb; bootz 0x81000000 - 0x82000000'`
-        - `bootargs`: dòng lệnh Linux kernel
+        - `bootargs`: Linux kernel command line, được thực thi trước khi kernel được load, nó định hình cách linux vận hành
 - FIT image
     + Flat Image Tree `image.itb`
     + xu hướng mới của việc boot bằng U-boot (hoặc các bootloader khác)
@@ -461,6 +514,7 @@ Power On
         - `modules.symbols`, `modules.symbols.bin`: file khai báo ký hiệu thuộc module nào
         - `modules.builtin`: danh sách modules được build thẳng vào cùng kernel
 - Module installation: embedded case
+    + `make modules`: build các kernel modules
     + `make INSTALL_MOD_PATH=<dir>/ modules_install`: dir: đường dẫn chứa root file system trong target
 - Kernel cleanup targets
     + make clean: xóa hết trừ .config và các file build hỗ trợ build externel modules
@@ -921,7 +975,7 @@ Example: arm-linux-
         - block device: có thể đọc/ghi theo từng khối riêng lẻ, theo thứ tự ngẫu nhiên mà không cần xóa: Hard disk, RAM disk, USB key, SSD, sdcard, emmc
         - raw flash device: được điều khiển bởi 1 controller có trên SoC, chúng có thể đọc, nhưng ghi thì cần xóa dữ liệu trước đó, và việc xóa thường diễn ra ở vùng size lớn hơn block size: NOR flash, NAND flash
 - Block device list
-    + danh sách tất cả block device khả dụng trong system có thể tìm thấy ở /proc/partitions
+    + danh sách tất cả block device khả dụng trong system có thể tìm thấy ở `/proc/partitions`
     + /sys/block cũng chứa thông tin về mỗi block device 
 - Partitioning
     + block device có thể được phân vùng để chứa nhiều phần khác nhau của hệ thống
@@ -976,3 +1030,115 @@ Example: arm-linux-
         - mount -t tmpfs run /run
         - mount -t tmpfs shm /dev/shm
 ## 3. Using block filesystems
+- Creating filesystems
+    + block device ban đầu chỉ là khối dữ liệu thô, việc tạo fielsystem sẽ giúp Linux hiểu được các tổ chức thư mục, tệp tin, quản lý file trong ổ đĩa
+    + để tạo 1 empty ext4 filesystem ở 1 block device hoặc trong 1 image file:
+        - `mkfs.ext4 /dev/sda3`
+        - `mkfs.ext4 disk.img`
+    + để tạo 1 filesystem image từ thư mục chứa tất cả file và thư mục
+        - với vài hệ thống filesystems cụ thể có nhiều công cụ để tạo 1 filesystem image từ đường dẫn đã tồn tại
+            + ext2: `genext2fs -d rootfs/ rootfs.img`
+            + squashfs: `mksquashfs rootfs/ rootfs.sqfs
+            + erof: `mkfs.erofs rootfs.erofs rootfs/`
+        - với hệ thống filesystem khác:
+            + tạo 1 disk image
+            + format nó
+            + mount nó
+            + copy dữ liệu
+            + umount
+        - image đã tạo đó sẵn sàng để flash vào block device
+- Mounting filesystem images
+    + df -h: kiểm tra trạng thái các phân vùng đang được mount
+    + Khi filesystem image đã được tạo, nó có thể truy cập và chỉnh sửa nội dung từ môi trường develop, sử dụng chơ chế loop:
+        - ví dụ: `mkdir /mnt/test mount -t ext4 -o loop rootfs.img /mnt/test`
+        - trong folder /mnt/test, có thể truy cập và chỉnh sửa được nội dung của rootfs.img
+        - điều này nhờ vào cơ chế loop - là 1 kernel driver mô phỏng lại 1 block device với nội dung của file
+        - lưu ý: cần `umount` trước khi sử dụng filesystem image ở nơi khác
+- How to access partition in a disk image
+    - Ta có thể sao chép nguyên si cấu trúc của 1 block device thành 1 disk image (block có bao nhiêu phân vùng thì sẽ được đưa vào 1 file disk image)
+    - Vậy, để chỉnh sửa được file disk image đó, cần dùng lệnh `losetup` để kết hợp 1 loop device với 1 file. Lệnh này chứa `partscan` cho phép tạo các khối đại diện cho các phân vùng bên trong disk image
+        + `sudo losetup -f --show -partscan disk.img`
+        + lệnh này nói với Linux rằng hãy biến disk.img thành 1 loop device (ổ đĩa ảo) để thao tác
+        + kết quả trả về của lệnh này là `/dev/loopX`
+        + dùng `ls -la /dev/loopX*` để check các phân vùng
+        + có thể dùng lệnh mount để mount phân vùng đó
+- creating squashs filesystems
+    + cài package `squashfs-tools`
+    + squashfs chỉ có phép đọc nên chỉ có thể tạo ra image hoàn chỉnh từ thư mục có dữ liệu sẵn. Việc tạo filesystem squashfs rỗng rồi đưa dữ liệu vào là không thể
+    + lệnh tạo squashfs image:
+        - `mksquashfs data/ data.sqfs -noappend` - lệnh này gom thư mục data và nén lại thành file data.sqfs. Tham số -noappend bắt phải tạo image từ đầu, thay vì nối đuôi vào file image cũ
+    + lệnh mount squashfs filesystems
+        - mount -o loop data.sqfs /mnt (ở máy host)
+        - mount /dev/<device> /mnt (ở target)
+- Mixing read-only and read-write filesystems
+    + Việc kết hợp filesystem chỉ đọc và đọc-ghi là tốt. Trong block storage sẽ gồm
+        - ![alt text](image-14.png)
+        - 1 phân vùng chi đọc (squashfs), dùng cho root filesystem (binaries, kernels, ...), tiết kiệm bộ nhớ, bảo vệ hệ thống khỏi lỗi
+        - 1 phân vùng read-write với journaled filesystem (nhật ký - như ext4), dùng để chứa user data hoặc config data, giúp hệ thống phục hồi được dữ liệu sau khi sập nguồn, reboot do crash
+        - tmpfs: bộ nhớ ram cho file tạm
+- Issues with flash-based block storage - vấn đề với block storage dựa trên bộ nhớ flash
+    + các bộ nhớ flash chỉ cho phép giao tiếp theo dạng khối qua các block interface
+    + vì vậy, linux không có cách nào truy cập vào phần cứng và thực hiện quá trình `wear leveling` (quá trình phân phối đều các lượt ghi lên toàn bộ ô nhớ, tránh 1 vị trị bị ghi quá nhiều lần)
+    + vì thuật toán quản lý bộ nhớ được các hãng giấu đi, nên cách tốt nhất là giảm thiểu số lần ghi/xóa vào storage. Nên dùng các thiết bị công nghiệp để có tuổi thọ bền hơn (SD, USB)
+    + 1 vài sd card hiển thị erase block size ở `/sys/bus/mmc/devices/<dev>/preferred_erase_size`
+
+# Flash storage and filesystems
+## 1. Block devices vs raw flash devices: reminder
+- Block devices:
+    + cho phép truy cập dữ liệu ngẫu nhiên bằng các dùng block có size cố định
+    + không yêu cầu xử lý đặc biệt khi ghi dữ liệu lên media
+    + block size khá nhỏ (tối thiểu là 512 bytes, có thể tăng lên để tối ưu hiệu năng)
+    + đáng tin cậy
+- Raw flash devices:
+    + các flash chíp được trực tiếp điều khiển bởi flash controller trên Soc. Ta có toàn quyền kiểm soát cách quản lý chúng
+    + cho phép truy cập dữ liệu ngãu nhiên, nhưng yêu cầu xóa trước khi ghi
+    + khối đọc-ghi không cùng kích thước với khối xóa
+    + Nhiều công nghệ flash: NOR, NAND
+- NAND flash storage: constraints
+    + Độ tin cậy:
+        - phụ thuộc vào công nghệ flash  (SLC, MLC)
+        - yêu cầu cơ chế khôi phục khi bị lỗi đảo bit: ECC (Error correcting code), được lưu trong OOB (Out-of-band area)
+    + Tuổi thọ:
+        - tương đối ngắn: chịu được 1000000 (SLC) và 1000 (MLC) chu kỳ xóa trên mỗi block
+        - yêu cầu phải có wear leveling để kiểm soát số lần xóa trên khối
+        - yêu cầu cơ thế phát hiện và xử lý khối lỗi - bad block detection/handling
+- The MTD subsystem
+    + ![alt text](image-15.png)
+    + Memory Technology Devices
+    + chịu trách nhiệm xử lý tất cả loại bộ nhớ mà không thuộc về block subsystem
+    + hỗ trợ: RAM, ROM, NOR flash, NAND flash ,... 
+    + hoạt động độc lập với giáo tiêp truyền thông vật lý
+    + trừu tượng hóa đặc tính và cung cấp interface đơn giản để truy cập vào các MTD devices
+    + MTD devices là các chip nhớ flash được hàn chết trên bo mạch
+- MTD partitioning
+    + MTD devices thường phải phân vùng, cho phép dùng các phân vùng khác nhau cho các mục đích khác nhau: read-only filesystem, read-write filesystem, backup areas, bootloader area, kernel area, ...
+    + các MTD devices cần được cấu hình phân vùng từ bên ngoài (trong device tree hoặc kernel command)
+    + MTD partitions được định nghĩa bằng tham số `mtdparts` trong kernel command line (bootargs)
+    + U-boot hiểu cú pháp linux qua biến `mtdparts` và `mtdids` 
+- MTD partitions on Linux
+    + mỗi partitions trở thành 1 MTD device riêng biệt
+    + cách đặt tên khác hoàn toàn với block devices
+    + `/dev/mtd0`: phân vùng đầu tiên được liệt kê trong hệ thống
+    + `/dev/mtd1`: phân vùng tiếp theo được liệt kê trong hệ thống
+    + `/dev/mtdX`: ...
+    + Master MTD deivce `/dev/mtd` không hiển thị trong `/dev`như `/dev/sdb`
+- Commands to manage NAND devices
+    + Trong u-boot:
+        - `help nand`: check all subcommand
+        - `nand info`, `nand read`, `nand write`, `nand erase`
+    + Trong Linux:  
+        - `ioctl()`: xóa và flash bộ nhớ
+        - `flash_eraseall`, `nandwrite`
+        - ...
+- Flash wear leveling - cân bằng độ hao mòn flash
+    + phân phối đều các lần xóa trên flash device, tránh việc đạt chu kì xóa tối đa quá nhanh trên các khối dữ liệu thường xuyên được ghi
+    + có thể thực hiện ở filesystem layer: JFFS2, YAFFS2 hoặc tầng trung gian UBI
+    + triển khai wear leveling quyết định tuổi thọ của bộ nhớ flash
+- Flash file-systems
+    + filesystem tiêu chuẩn (ext2, ext4, ...) được thiết kế để hoạt động trên block devices
+    + các filesystem đặc thù được thiết kế để xử lý hạn chế của bộ nhớ flash
+    + các filesystem này phụ thuộc vào MTD layer để truy cập vào flash chips
+    + ngày nay UBI/UBIFS là tiêu chuẩn cho các bộ nhớ NAND vừa và lớn
+- UBI
+    + Unsorted block images - tầng quản lý trung gian dành cho bộ nhớ flash
+        - 
