@@ -97,7 +97,7 @@
         - crosstool-ng
         - buildroot
         - yocto / openEmbedded
-
+- Sau khi build toolchain xong thì các file lib .so có thể tìm trong folder toolchain đó
 ---
 
 # Bootloaders and firmware
@@ -1094,7 +1094,7 @@ Example: arm-linux-
     + cho phép truy cập dữ liệu ngãu nhiên, nhưng yêu cầu xóa trước khi ghi
     + khối đọc-ghi không cùng kích thước với khối xóa
     + Nhiều công nghệ flash: NOR, NAND
-- NAND flash storage: constraints
+## 2. NAND flash storage: constraints
     + Độ tin cậy:
         - phụ thuộc vào công nghệ flash  (SLC, MLC)
         - yêu cầu cơ chế khôi phục khi bị lỗi đảo bit: ECC (Error correcting code), được lưu trong OOB (Out-of-band area)
@@ -1102,7 +1102,7 @@ Example: arm-linux-
         - tương đối ngắn: chịu được 1000000 (SLC) và 1000 (MLC) chu kỳ xóa trên mỗi block
         - yêu cầu phải có wear leveling để kiểm soát số lần xóa trên khối
         - yêu cầu cơ thế phát hiện và xử lý khối lỗi - bad block detection/handling
-- The MTD subsystem
+## 3. The MTD subsystem
     + ![alt text](image-15.png)
     + Memory Technology Devices
     + chịu trách nhiệm xử lý tất cả loại bộ nhớ mà không thuộc về block subsystem
@@ -1110,19 +1110,19 @@ Example: arm-linux-
     + hoạt động độc lập với giáo tiêp truyền thông vật lý
     + trừu tượng hóa đặc tính và cung cấp interface đơn giản để truy cập vào các MTD devices
     + MTD devices là các chip nhớ flash được hàn chết trên bo mạch
-- MTD partitioning
+## 4. MTD partitioning
     + MTD devices thường phải phân vùng, cho phép dùng các phân vùng khác nhau cho các mục đích khác nhau: read-only filesystem, read-write filesystem, backup areas, bootloader area, kernel area, ...
     + các MTD devices cần được cấu hình phân vùng từ bên ngoài (trong device tree hoặc kernel command)
     + MTD partitions được định nghĩa bằng tham số `mtdparts` trong kernel command line (bootargs)
     + U-boot hiểu cú pháp linux qua biến `mtdparts` và `mtdids` 
-- MTD partitions on Linux
+## 5. MTD partitions on Linux
     + mỗi partitions trở thành 1 MTD device riêng biệt
     + cách đặt tên khác hoàn toàn với block devices
     + `/dev/mtd0`: phân vùng đầu tiên được liệt kê trong hệ thống
     + `/dev/mtd1`: phân vùng tiếp theo được liệt kê trong hệ thống
     + `/dev/mtdX`: ...
     + Master MTD deivce `/dev/mtd` không hiển thị trong `/dev`như `/dev/sdb`
-- Commands to manage NAND devices
+## 6. Commands to manage NAND devices
     + Trong u-boot:
         - `help nand`: check all subcommand
         - `nand info`, `nand read`, `nand write`, `nand erase`
@@ -1130,7 +1130,7 @@ Example: arm-linux-
         - `ioctl()`: xóa và flash bộ nhớ
         - `flash_eraseall`, `nandwrite`
         - ...
-- Flash wear leveling - cân bằng độ hao mòn flash
+## 7. Flash wear leveling - cân bằng độ hao mòn flash
     + phân phối đều các lần xóa trên flash device, tránh việc đạt chu kì xóa tối đa quá nhanh trên các khối dữ liệu thường xuyên được ghi
     + có thể thực hiện ở filesystem layer: JFFS2, YAFFS2 hoặc tầng trung gian UBI
     + triển khai wear leveling quyết định tuổi thọ của bộ nhớ flash
@@ -1139,6 +1139,106 @@ Example: arm-linux-
     + các filesystem đặc thù được thiết kế để xử lý hạn chế của bộ nhớ flash
     + các filesystem này phụ thuộc vào MTD layer để truy cập vào flash chips
     + ngày nay UBI/UBIFS là tiêu chuẩn cho các bộ nhớ NAND vừa và lớn
-- UBI
+## 8. UBI
     + Unsorted block images - tầng quản lý trung gian dành cho bộ nhớ flash
-        - 
+        - ![alt text](image-16.png)
+        - Cách thiết kế:
+            + tách biệt wear leveling layer và filesystem layer
+            + thêm tính linh hoạt
+            + tập trung vào khả năng mở rộng, hiệu năng, độ tin cậy
+        - Nhược điểm:
+            + chiếm dụng đáng kể bộ nhớ, đặc biệt khi dùng với thiết bị nhỏ hoặc phân vùng nhỏ.
+            + JFFS2 vẫn là lựa chọn hợp lý trên các MTD partition nhỏ
+        - CHo phép wear leveling hoạt động trên toàn bộ phân vùng bộ nhớ
+    + ![alt text](image-17.png)
+        - Khi có quá nhiều hoạt động trên 1 LEB, UBI có thể quyết định di chuyển nó tới 1 PEB khác với số lần xóa đang ít
+        - Ngay cả các partition read-only cũng tham gia vào quá trình wear leveling
+    + Good practice
+        - UBI phân phối các lượt xóa ở toàn bộ flash devices: càng cấp nhiều dung lượng cho phân vùng gắn với UBI layer, hiệu quả của wear leveling càng cao
+        - Nếu cần phân vùng, hãy sử dụng phân vùng logic của UBI, không phải của MTD
+        - Một vài partition vẫn bắt buộc phải có MTD partitions (ví dụ như bootloader)
+        - U-boot hiện tại hỗ trợ chứa cấu hình môi trường vào phân vùng UBI
+        - Nếu cần nhiều MTD partition hơn, hãy gom chúng lại vào phần đầu của flash device
+    + So sánh bad và goot practice
+        - ![alt text](image-18.png)
+        - Bad practice là khi để các phân vùng MTD tách xa nhau, không gom lại đầu của flash device
+## 9. UBIFS - Unsorted Block Images file system
+    + Là filesystem nhật ký mang lại hiệu suất tốt hơn so với bản tiền nhiệm (JFFS2) và giải quyết được khả năng mở rộng
+    + có thể được mount làm root filesystem
+    + tạo image bằng cách `mkfs.ubifs` từ mtd-utils
+    + image này sau đó có thể flash vào vùng nhớ hoặc gộp vào UBI image khác (ubinize command)
+- ubinize for UBI image creation
+    + ![alt text](image-19.png)
+    + image UBIFS có thể được gộp cùng với zImage và .dtb thành 1 image để flash vào board
+## 10. Linux: Block emulation layer - lớp giả lập block
+    + Squashfs hay EROFS đòi hỏi phải chạy trên 1 block device, nhưng bộ nhớ flash ở các board mạch thường được quản lý dưới dạng MTD device. Vì vậy lớp giả lập đóng vai trò như bộ chuyển đổi, biến các phân vùng MTD/UBI thành các emulation block để OS có thể đọc được các read-only filesystem
+    + Linux cung cấp 2 emulation layers:
+        - `mtdblock` - CONFIG_MTB_BLOCK: giả lập các block device ở đâu của MTD devices
+            + được đặt tên là `/dev/mtdblockX`
+            + không nên ghi vào `mtdblock device` vì bad block không được xử lý
+        - `ubiblock` - CONFIG_MTD_UBI_BLOCK: giả lập read-only block device ở đầu của phân vùng UBI
+            + chỉ dùng cho phân vùng read-only
+            + được đặt tên là `/dev/ubiblockX_Y`, X là UBI device id, Y là phân vùng của UBI
+
+# Cross-compiling user-space libraries and applications
+## 1. Intergrating user-space libraries and applications
+- embedded Linux có rất nhiêu ứng dụng và thư viện bên thứ 3
+## 2. Concept of build system
+- Mỗi phần mềm mã nguồn mở đi kèm với bộ scripts/file để cấu hình/biên dịch -> build system
+    + phát hiện yêu cầu hệ thống, dependencies 
+    + biên dịch các source file để tạo ra app/libraries, cũng như tài liệu
+    + cài đặt build product
+- Các hệ thống build phổ biến:
+    + Makefiles
+    + Autoconf, automake, libtool
+    + CMake
+    + meson
+## 3. Target and staging spaces - không gian đệm
+- khi biên dịch cross compile thủ công, ta sẽ phân biệt 2 bản root filesystem
+    + target root filesystem: cài lên board, chỉ chứa những thứ cần thiết cho runtime
+    + staging space: có cấu trúc tương tự, chứa nhiều file hơn target root filesystem: header, lib, doc, ... cần cho việc build
+    + root filesystem ở board phải luôn nhỏ nhất có thể
+## 4. Autotools
+- 1 nhóm các phần mềm kết hợp lại với nhau để tạo ra 1 build system hoàn chỉnh, quản lý và điều phối các thành phần trong project
+    + autoconf: cấu hình software package
+    + automake: tạo các Makefiles cần cho việc compile
+    + libtool: tao ra các shared library độc lập với hệ thống
+- Hầu hết các công cụ này đã cũ và phức tạp. Ngày nay meson đang dần thay thế
+## 5. CMake
+- CMakeLists.txt
+- cmake .
+- make
+- make install
+- CMake toolchain file
+    + khi cross_compile với CMake, số lượng tham số truyền vào có thể dài
+    + chúng sẽ được gom vào toolchain file 
+    + `cmake -DCMAKE_TOOLCHAIN_FILE=/path/to/toolchain-file.txt`
+    + tệp toolchain này thường được cung cấp bởi các build system: Buildroot, Yocto
+## 6. Meson
+- xử lý `meson.build` và `meson_options.txt` và tạo ra Ninja files
+- Ninja là công cụ thay thế cho make
+- thự mục build phải tách biệt khỏi thư mục project
+    + mkdir build
+    + cd build
+    + meson ..
+    + ninja
+    + ninja install
+- Meson cross file
+    + là tệp chứa định nghĩa các biến nhằm cung cấp cho Meson thông tin cần cho cross compile
+    + có thể tạo thủ công hoặc được cung cấp bởi Linux build system (Buildroot, Yocto)
+    + dùng bằng option `--cross-file`
+## 7. pkg-config
+- là tool cho phép truy vấn database để lấy thông tin về cách biên dịch các chương trình mà phụ thuộc vào các libraries
+- Database này được cấu thành từ các .pc files, được cài lại đường dẫn `<prefix>/lib/pkgconfig/`
+- pkb-config thường được dùng bởi CMake, Meson để tìm kiếm libraries
+- mặc định, pkg-config tìm kiếm .pc file trong `/usr/lib/pkgconfig`
+- `PKG_CONFIG_LIBDIR`: cho phép thiết lập vị trí khác cho .pc files
+- `PKG_CONFIG_SYSROOT_DIR`: cho phép thêm 1 thư mục tiền tố vào trước các đường dẫn được đề cập trong .pc files
+
+## 8. Thực hành
+- Với app/project dùng configure script:
+    + ./configure --host=arm-linux --disable-topology --prefix=/usr (topology dùng cho alsa lib)
+    + CC=arm-linux-gcc ./configure
+    + make
+    + make DESTDIR=$HOME/embedded-linux-bbb-labs/thirdparty/staging install
+    + dùng strip để giảm dung lượng file và thư viện (bỏ Debugging symbols) trước khi đưa vào board
