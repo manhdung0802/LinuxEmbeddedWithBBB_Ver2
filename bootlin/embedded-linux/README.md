@@ -1242,3 +1242,137 @@ Example: arm-linux-
     + make
     + make DESTDIR=$HOME/embedded-linux-bbb-labs/thirdparty/staging install
     + dùng strip để giảm dung lượng file và thư viện (bỏ Debugging symbols) trước khi đưa vào board
+- libgpiod: thư viện để quản lý gpio
+    + gpioinfo: kiểm tra pin thuộc gpiochip nào
+
+# Embedded system building tools
+## 1. Approaches
+- có 3 cách để build 1 embedded linux system
+    + cross-compile mọi thứ thủ công
+    + dùng bản phân phối có sẵn: Ubuntu,...
+    + dùng embedded linux build system để tự động hóa quá trinh cross-compilation (yocto, buildroot)
+## 2. Embedded Linux build systems
+- Là công cụ điều phối quá trình biên dịch của tất cả thành phần theo thứ tự.
+- Lợi ích khi dùng embedded Linux build system
+    + linh hoạt hơn
+    + tận dụng được tốc độ của pc
+    + dễ dàng quản lý, build các components
+## 3. Builtroot
+- Buildroot: introduction
+    + cho phép build toolchain, rootfs image, bootloader, kernel image
+    + hỗ trợ uClibc, glibc và musl toolchain
+    + tốt cho hệ thống embedded nhỏ và vừa với dải tính năng cố định
+        - không hỗ trợ tạo packages
+        - cần rebuild toàn bộ khi có thay đổi
+- Buildroot: configuration and build
+    + file cấu hình được nằm ở file *config tương tự như `make menuconfig` của Linux
+    + cho phép setup:
+        - kiến trúc, dòng CPU cụ thể
+        - cấu hình toolchain
+        - tích hợp app và libraries
+        - tạo fielsystem images
+        - cấu hình kernel và bootloader
+    - `make`
+    - output nằm ở : `output/images/`
+- Buildroot: adding a new package
+    + package cho phép tích hợp user app hoặc lib vào Buildroot
+    + có thể được dùng để tích hợp:
+        - open-source lib hoặc app
+        - lib hoặc app của mình
+    + mỗi package có đường dẫn riêng của nó, đường dẫn này chứa:
+        - `Config.in`: mô tả cấu hình của pkg, cần ít nhất 1 file này để kích hoạt pkg. File này phải được lấy từ `package/Config.in`
+        - `jose.mk`: mô tả pkg được build như nào
+        - `jose.hash`: chứa commit hash
+        - `*.patch`: áp dụng file này như bản vá
+- Buildroot: adding a new package, Config.in
+    + ![alt text](image-20.png)
+- Buildroot: adding new package, .mk file
+    + ![alt text](image-21.png)
+    + đường dẫn của pkg và prefix của các biến phải khớp với hậu tố (suffix) của BR2_PACKAGE_JOSE trong cấu hình Builtroot
+    + meson-package biết cách làm thế nào để build Meson package
+## 4. Yocto Project / OpenEmbedded
+- Các thuật ngữ:
+    + Layer: là git repo chứa tập hợp các recipes, machines, ...
+    + Recipe: là metadata mô tả cách build 1 thành phần software hoặc mô tả nội dung của 1 image
+    + Machine: nền tảng phần cứng
+    + bitbake: công cụ điều phối và xử lý các công thức để tạo ra output
+- Với mỗi recipe, hệ thống sẽ tọa ra 1 hoặc nhiều binary pkg (deb, rpm, ipk)
+- Các binary pkg được cài đặt để tạo ra rootfs image để flash vào board
+- Các pkg khác có thể được cài đặt lúc runtime sử dụng các hệ thống quản lý gói như apt, opkg
+- **Public layers**:
+    + core layers:
+        - bitbake 
+        - openembedded-core: chứa các recipe nền tảng để build các gói phần mềm phổ biến: Linux, Busybox, toolchain, systemd, ...Layer này chỉ hỗ trợ QEMU
+        - poky: 1 layer từ Yocto project định nghĩa bản phân phối Poky, không hữu ích cho các hệ thống thực tế
+        - meta-openembedded: duy trì từ dự án OpenEmbedded
+    + BSP layer: là layer cung cấp bởi vendor, hỗ trợ thêm nền tảng phần cứng gồm: recipe cho build Linux kernel, bootloader, các thành phần software liên quan hardware: meta-intel, meta-arm, meta-ti, ...
+    + Các layer bổ sung: chứa recipe để build các component, không có sẵn trong openembedded core
+    + Tra cứu layer: `https://layers.openembedded.org/`
+    + Mỗi layer thường có 1 brach trùng với Yocto đang dùng
+- Combine layer:
+    + Đối với các project, thường cần kết hợp nhiều layers
+        - ít nhất là openembedded-core layer
+        - có thể 1 hoặc vài BSP layer
+        - có thể 1 hoặc vài software layer
+    + và mình có thể tạo layer, chứa recipe cho
+        - nền tảng phần cứng tùy chỉnh
+        - image cho custom system
+        - recipe cho custom software
+    + `google repo` hoặc `Kas utility`: tool để tự động hóa việc tải các layer cần thiết, đúng phiên bản 
+## 5. So sánh Buildroot và Yocto
+- Yocto: 
+    + build bản phân phối với binary pkg và hệ thống quản lý pkg
+    + cấu hình linh hoạt, mạnh nhưng phức tạp
+    + logic phức tạp và nặng, nhưng cache hiệu quả và hỗ trợ chỉ build những thứ cần thiết
+    + hệ sinh thái: hỗ trợ nhiều tính năng cho các layer bên thứ 3, nhưng chất lượng k đồng đều
+- Buildroot: 
+    + build rootfs, không có binary pkg
+    + cấu hình đơn giản, đôi khi có giới hạn
+    + đơn giảm nhưng vài logic hơi ngu, không caching build, phải build lại toàn bộ khi thay đổi
+    + hệ sinh thái: mọi thứ nằm trong 1 cây thư mục, chất lượng đồng đều hơn
+- Các binary pkg không hẳn là tốt với embedded
+## 6. Thực hành 
+- git clone https://gitlab.com/buildroot.org/buildroot.git
+- boot: chứa Makefiles và cấu hình liên quan tới biên dịch bootloader 
+- board: chứa cấu hình cho từng board và rootfs overlays
+- configs: chứa các cấu hình defconfig
+- docs: chứa documention
+- fs: chứa code để tạo ra root filesystem image
+- linux: chứa Makefile và cấu hình item liên quan tới biên dịch Linux kernel
+- Makefile
+- package: chứa tất cả Makefile, patches và cấu hình để biên dịch user-space app và libirary của embedded linux system
+- system: chứa cấu trúc rootfs trong `/skeleton` và device table dùng khi /dev được sử dụng
+- toolchain: chứa Makefiles, patch, cấu hình cho việc cross-compile toolchain
+- Trong output của buildroot chứa:
+    + build: folder build
+    + host: thư mục mà buildroot cài các component cho máy host, gồm các tool để thực hiện quá trình build
+    + images: output thực sự: kernel, dtb, rootfs.tar
+    + staging: chứa system header, rootfs, target lib
+    + target: là rootfs, tất cả app, lib đã được strip. Tuy nhiên không thể trực tiếp dùng như rootfs vì các device file đã bị mất
+- Có thể custom thêm file rồi add đường dẫn vào `Root filesystem overlay directories` trong menuconfig
+- Sơ đồ phụ thuộc của các thành phần trong buildroot
+    + sudo apt install graphviz
+    + make graph-depends
+- Add kernel module custom
+    + tạo folder driver-name cho kernel đó trong buildroot/package
+    + tạo file Config.in cho folder đó
+    + add file Config.in đó vào Config.in của buildroot/package
+    + tạo file .mk trong buildroot/package/driver-name để mô tả cách build pkg
+    + mở menuconfig buildroot lên rồi tìm tên driver mới này
+    + Config.in
+        ```
+            config BR2_PACKAGE_NUNCHUK_DRIVER // tên biến config
+            bool "nunchuk driver" // giá trị bool để chon Y/N trong menuconfig
+            depends on BR2_LINUX_KERNEL // phụ thuộc vào Linux kernel
+            help
+            Linux Kernel module for the I2C Nunchuk.
+        ```
+    + .mk:
+        ```
+        NUNCHUK_DRIVER_VERSION = 1.0 // phiên bản
+        NUNCHUK_DRIVER_SITE = $(HOME)/embedded-linux-bbb-labs/hardware/data/nunchuk // đường dẫn chứa kernel module
+        NUNCHUK_DRIVER_SITE_METHOD = local // cách lấy mã nguồn là từ local
+        NUNCHUK_DRIVER_LICENSE = GPL-2.0 // giấy phép
+        $(eval $(kernel-module))
+        $(eval $(generic-package))
+        ``` 
