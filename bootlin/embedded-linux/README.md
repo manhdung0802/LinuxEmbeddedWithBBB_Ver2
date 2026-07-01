@@ -135,45 +135,8 @@
     + ROM code cung cấp cơ chế phục hồi, cho phép nạp firmware cho bo mạch không có bootloader hoặc bootloader bị hỏng, thường bằng giao thức riêng cho nhà sản xuất thông qua UART hoặc USB
     + Nó thường cho phép đẩy 1 bootloader mới vào RAM, giúp việc nạp bootloader có thể thực hiện tại được
     + 1 số tool của các vendor: STM32 cube, SAM-BA, Snagboot `https://github.com/bootlin/snagboot`,...
-- Booting sequence
-Power On
-    │
-    ▼
-┌──────────┐      1. Đọc chân Boot Pins & Khởi tạo SRAM
-│ ROM Code │ ──────────────────────────────────────────────┐
-└────┬─────┘                                               │
-     │ 2. Tải MLO/SPL vào SRAM                             ▼
-     │──────────────────────────────────────────────> ┌─────────┐
-     │                                                │  SRAM   │
-     │ 3. Nhảy đến SRAM & nhường quyền                └────┬────┘
-     │─────────────────────────────────────────────┐       ▲
-     ▼                                             │       │
-┌──────────┐                                       ▼       │ 4. Cấu hình &
-│   SPL    │ ──────────────────────────────────────────────┘    Kích hoạt RAM
-│  (MLO)   │
-└────┬─────┘ 5. Tải file u-boot.img vào RAM (DDR)
-     │──────────────────────────────────────────────> ┌─────────┐
-     │                                                │   RAM   │
-     │ 6. Nhảy đến RAM & nhường quyền                 │  (DDR)  │
-     │─────────────────────────────────────────────┐  └────┬────┘
-     ▼                                             │       ▲
-┌──────────┐                                       ▼       │
-│  U-Boot  │ ──────────────────────────────────────────────┘
-└────┬─────┘ 7. Nạp Kernel (zImage) + DTB (.dtb) vào RAM
-     │                                                     
-     │ 8. Thực hiện lệnh 'bootz' để kích nổ Kernel          
-     │─────────────────────────────────────────────┐
-     ▼                                             │
-┌──────────┐                                       ▼
-│  Linux   │ <─────────────────────────────────────┘
-│  Kernel  │ 9. Khởi tạo Driver, Mount Real Rootfs (eMMC/SD)
-└────┬─────┘
-     │ 10. Chạy tiến trình đầu tiên (PID 1)
-     ▼
-┌──────────┐
-│  init /  │ 11. Chạy các dịch vụ nền (Services), Mở cổng Serial
-│ systemd  │ ──────────────────────────────────────────────> [ Login Prompt ]
-└──────────┘
+- Booting sequence 
+    + ![alt text](image-22.png)
 
 ## 3. Bootloaders - giới thiệu 1 số bootloader phổ biến
 - GRUB - Grand Unified Bootloader:
@@ -991,30 +954,30 @@ Example: arm-linux-
         - `dd if=testfile of=/dev/sda2 bs=1M seek=4`: truyền toàn bộ testfile vào sda2theo từng khối 1MB, bắt đầu từ offset 4MB trong sda2, tức là bỏ qua 4MB đầu tiên
     + khi copy data thì nếu copy thông thường, file đó sẽ được đẩy vào RAM, nếu file quá lớn, có thể làm tràn ram. Vì vậy dd sẽ chia nhỏ file đó ra, mỗi lần copy thì nó đẩy 1 data có kích thước là 1MB vào RAM. Khi copy xong thì xóa trong RAM rồi lấy 1 MB tiếp. Điều này giúp RAM không bị tràn khi copy dữ liệu
 ## 2. Available block filesystems (dưới đây là các hệ thống file system dùng để tổ chức, phân chia, quản lý dữ liệu)
-    + ext2:
-        - 1 trong những hệ thống tập tin (filesystem) Linux đầu tiên
-        - chi phí quản lý metadata thấp, dung lượng sử dụng RAM ít
-        - Có nguy cơ hỏng metadata nếu shutdown không đúng cách
-        - hỗ trợ tất cả tính năng là Linux cần trong 1 root filesystem: permessions, ownership, device files, ...
-        - không khuyến khích cho embedded
-    + ext3: không khuyến khích dùng
-    + journaled filesystems:
-        - được thiết kế để giữ hệ thống nhất quán sau khi system bị crash hoặc shutdown đột ngột
-        - việc ghi được mô tả đầu tiên trong nhật ký trước khi thực sự ghi vao file
-        - nhờ vào nhật ký, việc khôi phục tại thời điểm boot nhanh hơn vì các thao tác tại thời điểm shutdown không đúng các được ghi lại rõ ràng, không cần kiểm tra toàn bộ hệ thống. Nhưng không có nghĩa rằng thao tác ghi cuối cùng sẽ được ghi vào bộ nhớ
-    + ext4:
-        - hệ thống filesystem kết hợp với journaling (nhật ký)
-        - là hệ thống filesystem cho nhiều bản GNU/Linux 
-        - ext4 driver hỗ trợ tốt cho ext2, ext3
-        - tính năng đáng chú ý: mã hóa trong suốt (transparent encryption) nhưng không hỗ trợ tính năng nén
-        - kích thước phân vùng tối thiểu để kích hoạt journal là 2MB (256 inodes)
-        - kích thước phân vùng tối thiểu khi không dùng journal là 64KB (16 inodes)
-    + XFS: hiệu năng tốt với file dung lượng lớn
-    + Btrfs: 
-    + F2FS 
-    + SquashFS
-    + EROFS
-    + Benchmarks của các loại filesystem trên: ![alt text](image-13.png)
++ ext2:
+    - 1 trong những hệ thống tập tin (filesystem) Linux đầu tiên
+    - chi phí quản lý metadata thấp, dung lượng sử dụng RAM ít
+    - Có nguy cơ hỏng metadata nếu shutdown không đúng cách
+    - hỗ trợ tất cả tính năng là Linux cần trong 1 root filesystem: permessions, ownership, device files, ...
+    - không khuyến khích cho embedded
++ ext3: không khuyến khích dùng
++ journaled filesystems:
+    - được thiết kế để giữ hệ thống nhất quán sau khi system bị crash hoặc shutdown đột ngột
+    - việc ghi được mô tả đầu tiên trong nhật ký trước khi thực sự ghi vao file
+    - nhờ vào nhật ký, việc khôi phục tại thời điểm boot nhanh hơn vì các thao tác tại thời điểm shutdown không đúng các được ghi lại rõ ràng, không cần kiểm tra toàn bộ hệ thống. Nhưng không có nghĩa rằng thao tác ghi cuối cùng sẽ được ghi vào bộ nhớ
++ ext4:
+    - hệ thống filesystem kết hợp với journaling (nhật ký)
+    - là hệ thống filesystem cho nhiều bản GNU/Linux 
+    - ext4 driver hỗ trợ tốt cho ext2, ext3
+    - tính năng đáng chú ý: mã hóa trong suốt (transparent encryption) nhưng không hỗ trợ tính năng nén
+    - kích thước phân vùng tối thiểu để kích hoạt journal là 2MB (256 inodes)
+    - kích thước phân vùng tối thiểu khi không dùng journal là 64KB (16 inodes)
++ XFS: hiệu năng tốt với file dung lượng lớn
++ Btrfs: 
++ F2FS 
++ SquashFS
++ EROFS
++ Benchmarks của các loại filesystem trên: ![alt text](image-13.png)
 - Compatibility filesystems - khả năng tương thích với các filesystem của các OS khác
     + Linux hỗ trợ nhiều format filesystem khác:
         - vfat - CONFIG_VFAT_FS: phù hợp để chứa bootloader binary. Filesystem này không hỗ trợ permission, ownership, ... và không thể dùng cho Linux rootfs
@@ -1095,90 +1058,90 @@ Example: arm-linux-
     + khối đọc-ghi không cùng kích thước với khối xóa
     + Nhiều công nghệ flash: NOR, NAND
 ## 2. NAND flash storage: constraints
-    + Độ tin cậy:
-        - phụ thuộc vào công nghệ flash  (SLC, MLC)
-        - yêu cầu cơ chế khôi phục khi bị lỗi đảo bit: ECC (Error correcting code), được lưu trong OOB (Out-of-band area)
-    + Tuổi thọ:
-        - tương đối ngắn: chịu được 1000000 (SLC) và 1000 (MLC) chu kỳ xóa trên mỗi block
-        - yêu cầu phải có wear leveling để kiểm soát số lần xóa trên khối
-        - yêu cầu cơ thế phát hiện và xử lý khối lỗi - bad block detection/handling
++ Độ tin cậy:
+    - phụ thuộc vào công nghệ flash  (SLC, MLC)
+    - yêu cầu cơ chế khôi phục khi bị lỗi đảo bit: ECC (Error correcting code), được lưu trong OOB (Out-of-band area)
++ Tuổi thọ:
+    - tương đối ngắn: chịu được 1000000 (SLC) và 1000 (MLC) chu kỳ xóa trên mỗi block
+    - yêu cầu phải có wear leveling để kiểm soát số lần xóa trên khối
+    - yêu cầu cơ thế phát hiện và xử lý khối lỗi - bad block detection/handling
 ## 3. The MTD subsystem
-    + ![alt text](image-15.png)
-    + Memory Technology Devices
-    + chịu trách nhiệm xử lý tất cả loại bộ nhớ mà không thuộc về block subsystem
-    + hỗ trợ: RAM, ROM, NOR flash, NAND flash ,... 
-    + hoạt động độc lập với giáo tiêp truyền thông vật lý
-    + trừu tượng hóa đặc tính và cung cấp interface đơn giản để truy cập vào các MTD devices
-    + MTD devices là các chip nhớ flash được hàn chết trên bo mạch
++ ![alt text](image-15.png)
++ Memory Technology Devices
++ chịu trách nhiệm xử lý tất cả loại bộ nhớ mà không thuộc về block subsystem
++ hỗ trợ: RAM, ROM, NOR flash, NAND flash ,... 
++ hoạt động độc lập với giáo tiêp truyền thông vật lý
++ trừu tượng hóa đặc tính và cung cấp interface đơn giản để truy cập vào các MTD devices
++ MTD devices là các chip nhớ flash được hàn chết trên bo mạch
 ## 4. MTD partitioning
-    + MTD devices thường phải phân vùng, cho phép dùng các phân vùng khác nhau cho các mục đích khác nhau: read-only filesystem, read-write filesystem, backup areas, bootloader area, kernel area, ...
-    + các MTD devices cần được cấu hình phân vùng từ bên ngoài (trong device tree hoặc kernel command)
-    + MTD partitions được định nghĩa bằng tham số `mtdparts` trong kernel command line (bootargs)
-    + U-boot hiểu cú pháp linux qua biến `mtdparts` và `mtdids` 
++ MTD devices thường phải phân vùng, cho phép dùng các phân vùng khác nhau cho các mục đích khác nhau: read-only filesystem, read-write filesystem, backup areas, bootloader area, kernel area, ...
++ các MTD devices cần được cấu hình phân vùng từ bên ngoài (trong device tree hoặc kernel command)
++ MTD partitions được định nghĩa bằng tham số `mtdparts` trong kernel command line (bootargs)
++ U-boot hiểu cú pháp linux qua biến `mtdparts` và `mtdids` 
 ## 5. MTD partitions on Linux
-    + mỗi partitions trở thành 1 MTD device riêng biệt
-    + cách đặt tên khác hoàn toàn với block devices
-    + `/dev/mtd0`: phân vùng đầu tiên được liệt kê trong hệ thống
-    + `/dev/mtd1`: phân vùng tiếp theo được liệt kê trong hệ thống
-    + `/dev/mtdX`: ...
-    + Master MTD deivce `/dev/mtd` không hiển thị trong `/dev`như `/dev/sdb`
++ mỗi partitions trở thành 1 MTD device riêng biệt
++ cách đặt tên khác hoàn toàn với block devices
++ `/dev/mtd0`: phân vùng đầu tiên được liệt kê trong hệ thống
++ `/dev/mtd1`: phân vùng tiếp theo được liệt kê trong hệ thống
++ `/dev/mtdX`: ...
++ Master MTD deivce `/dev/mtd` không hiển thị trong `/dev`như `/dev/sdb`
 ## 6. Commands to manage NAND devices
-    + Trong u-boot:
-        - `help nand`: check all subcommand
-        - `nand info`, `nand read`, `nand write`, `nand erase`
-    + Trong Linux:  
-        - `ioctl()`: xóa và flash bộ nhớ
-        - `flash_eraseall`, `nandwrite`
-        - ...
++ Trong u-boot:
+    - `help nand`: check all subcommand
+    - `nand info`, `nand read`, `nand write`, `nand erase`
++ Trong Linux:  
+    - `ioctl()`: xóa và flash bộ nhớ
+    - `flash_eraseall`, `nandwrite`
+    - ...
 ## 7. Flash wear leveling - cân bằng độ hao mòn flash
-    + phân phối đều các lần xóa trên flash device, tránh việc đạt chu kì xóa tối đa quá nhanh trên các khối dữ liệu thường xuyên được ghi
-    + có thể thực hiện ở filesystem layer: JFFS2, YAFFS2 hoặc tầng trung gian UBI
-    + triển khai wear leveling quyết định tuổi thọ của bộ nhớ flash
++ phân phối đều các lần xóa trên flash device, tránh việc đạt chu kì xóa tối đa quá nhanh trên các khối dữ liệu thường xuyên được ghi
++ có thể thực hiện ở filesystem layer: JFFS2, YAFFS2 hoặc tầng trung gian UBI
++ triển khai wear leveling quyết định tuổi thọ của bộ nhớ flash
 - Flash file-systems
     + filesystem tiêu chuẩn (ext2, ext4, ...) được thiết kế để hoạt động trên block devices
     + các filesystem đặc thù được thiết kế để xử lý hạn chế của bộ nhớ flash
     + các filesystem này phụ thuộc vào MTD layer để truy cập vào flash chips
     + ngày nay UBI/UBIFS là tiêu chuẩn cho các bộ nhớ NAND vừa và lớn
 ## 8. UBI
-    + Unsorted block images - tầng quản lý trung gian dành cho bộ nhớ flash
-        - ![alt text](image-16.png)
-        - Cách thiết kế:
-            + tách biệt wear leveling layer và filesystem layer
-            + thêm tính linh hoạt
-            + tập trung vào khả năng mở rộng, hiệu năng, độ tin cậy
-        - Nhược điểm:
-            + chiếm dụng đáng kể bộ nhớ, đặc biệt khi dùng với thiết bị nhỏ hoặc phân vùng nhỏ.
-            + JFFS2 vẫn là lựa chọn hợp lý trên các MTD partition nhỏ
-        - CHo phép wear leveling hoạt động trên toàn bộ phân vùng bộ nhớ
-    + ![alt text](image-17.png)
-        - Khi có quá nhiều hoạt động trên 1 LEB, UBI có thể quyết định di chuyển nó tới 1 PEB khác với số lần xóa đang ít
-        - Ngay cả các partition read-only cũng tham gia vào quá trình wear leveling
-    + Good practice
-        - UBI phân phối các lượt xóa ở toàn bộ flash devices: càng cấp nhiều dung lượng cho phân vùng gắn với UBI layer, hiệu quả của wear leveling càng cao
-        - Nếu cần phân vùng, hãy sử dụng phân vùng logic của UBI, không phải của MTD
-        - Một vài partition vẫn bắt buộc phải có MTD partitions (ví dụ như bootloader)
-        - U-boot hiện tại hỗ trợ chứa cấu hình môi trường vào phân vùng UBI
-        - Nếu cần nhiều MTD partition hơn, hãy gom chúng lại vào phần đầu của flash device
-    + So sánh bad và goot practice
-        - ![alt text](image-18.png)
-        - Bad practice là khi để các phân vùng MTD tách xa nhau, không gom lại đầu của flash device
++ Unsorted block images - tầng quản lý trung gian dành cho bộ nhớ flash
+    - ![alt text](image-16.png)
+    - Cách thiết kế:
+        + tách biệt wear leveling layer và filesystem layer
+        + thêm tính linh hoạt
+        + tập trung vào khả năng mở rộng, hiệu năng, độ tin cậy
+    - Nhược điểm:
+        + chiếm dụng đáng kể bộ nhớ, đặc biệt khi dùng với thiết bị nhỏ hoặc phân vùng nhỏ.
+        + JFFS2 vẫn là lựa chọn hợp lý trên các MTD partition nhỏ
+    - CHo phép wear leveling hoạt động trên toàn bộ phân vùng bộ nhớ
++ ![alt text](image-17.png)
+    - Khi có quá nhiều hoạt động trên 1 LEB, UBI có thể quyết định di chuyển nó tới 1 PEB khác với số lần xóa đang ít
+    - Ngay cả các partition read-only cũng tham gia vào quá trình wear leveling
++ Good practice
+    - UBI phân phối các lượt xóa ở toàn bộ flash devices: càng cấp nhiều dung lượng cho phân vùng gắn với UBI layer, hiệu quả của wear leveling càng cao
+    - Nếu cần phân vùng, hãy sử dụng phân vùng logic của UBI, không phải của MTD
+    - Một vài partition vẫn bắt buộc phải có MTD partitions (ví dụ như bootloader)
+    - U-boot hiện tại hỗ trợ chứa cấu hình môi trường vào phân vùng UBI
+    - Nếu cần nhiều MTD partition hơn, hãy gom chúng lại vào phần đầu của flash device
++ So sánh bad và goot practice
+    - ![alt text](image-18.png)
+    - Bad practice là khi để các phân vùng MTD tách xa nhau, không gom lại đầu của flash device
 ## 9. UBIFS - Unsorted Block Images file system
-    + Là filesystem nhật ký mang lại hiệu suất tốt hơn so với bản tiền nhiệm (JFFS2) và giải quyết được khả năng mở rộng
-    + có thể được mount làm root filesystem
-    + tạo image bằng cách `mkfs.ubifs` từ mtd-utils
-    + image này sau đó có thể flash vào vùng nhớ hoặc gộp vào UBI image khác (ubinize command)
++ Là filesystem nhật ký mang lại hiệu suất tốt hơn so với bản tiền nhiệm (JFFS2) và giải quyết được khả năng mở rộng
++ có thể được mount làm root filesystem
++ tạo image bằng cách `mkfs.ubifs` từ mtd-utils
++ image này sau đó có thể flash vào vùng nhớ hoặc gộp vào UBI image khác (ubinize command)
 - ubinize for UBI image creation
     + ![alt text](image-19.png)
     + image UBIFS có thể được gộp cùng với zImage và .dtb thành 1 image để flash vào board
 ## 10. Linux: Block emulation layer - lớp giả lập block
-    + Squashfs hay EROFS đòi hỏi phải chạy trên 1 block device, nhưng bộ nhớ flash ở các board mạch thường được quản lý dưới dạng MTD device. Vì vậy lớp giả lập đóng vai trò như bộ chuyển đổi, biến các phân vùng MTD/UBI thành các emulation block để OS có thể đọc được các read-only filesystem
-    + Linux cung cấp 2 emulation layers:
-        - `mtdblock` - CONFIG_MTB_BLOCK: giả lập các block device ở đâu của MTD devices
-            + được đặt tên là `/dev/mtdblockX`
-            + không nên ghi vào `mtdblock device` vì bad block không được xử lý
-        - `ubiblock` - CONFIG_MTD_UBI_BLOCK: giả lập read-only block device ở đầu của phân vùng UBI
-            + chỉ dùng cho phân vùng read-only
-            + được đặt tên là `/dev/ubiblockX_Y`, X là UBI device id, Y là phân vùng của UBI
++ Squashfs hay EROFS đòi hỏi phải chạy trên 1 block device, nhưng bộ nhớ flash ở các board mạch thường được quản lý dưới dạng MTD device. Vì vậy lớp giả lập đóng vai trò như bộ chuyển đổi, biến các phân vùng MTD/UBI thành các emulation block để OS có thể đọc được các read-only filesystem
++ Linux cung cấp 2 emulation layers:
+    - `mtdblock` - CONFIG_MTB_BLOCK: giả lập các block device ở đâu của MTD devices
+        + được đặt tên là `/dev/mtdblockX`
+        + không nên ghi vào `mtdblock device` vì bad block không được xử lý
+    - `ubiblock` - CONFIG_MTD_UBI_BLOCK: giả lập read-only block device ở đầu của phân vùng UBI
+        + chỉ dùng cho phân vùng read-only
+        + được đặt tên là `/dev/ubiblockX_Y`, X là UBI device id, Y là phân vùng của UBI
 
 # Cross-compiling user-space libraries and applications
 ## 1. Intergrating user-space libraries and applications
@@ -1376,3 +1339,121 @@ Example: arm-linux-
         $(eval $(kernel-module))
         $(eval $(generic-package))
         ``` 
+# Overview of major embedded Linux software stacks - Các khối kiến trúc phần mềm Linux nhúng
+## D-Bus
+- là cơ chế trung gian sử dụng message, cho phép giao tiếp giữa nhiều process trong 1 thiết bị
+- Nó dựa vào 1 tiến trình nền để chuyển message qua lại giữa các ứng dụng
+- Chủ yếu được dùng bởi các tiến trình hệ thống, cung cấp service cho client
+- Ví dụ: 1 process cấu hình mạng, chạy ở quyền root, cung cấp API D-bus cho client để có thể cấu hình mạng 
+- Có 1 số loại bus:
+    + 1 system bus: truy cập bởi all users, dành cho system service
+    + 1 session bus: truy cập bởi mỗi người dùng khi đăng nhập system
+- Mô hình đối tượng: interfaces, objects, methods, signals
+## systemd
+- Modern init system, được dùng rất nhiều, tương tự Busybox
+- Phức tạp hơn Busybox nhưng mạnh mẽ hơn
+- chỉ hỗ trợ glibc
+- Cung cấp các tính năng:
+    + Khởi động song song các service, có tính đến dependencies giữa chúng
+    + giám sát các service
+    + khởi động dịch vụ theo nhu cầu, thông qua cơ chế socket activation
+    + quản lý tài nguyên của service: CPU limit, memory limit
+- cấu hình dựa theo unit files
+    + sử dụng ngôn ngữ khai báo (Declarative language) thay vì các shell script trong các init system khác
+- systemd cũng cung cấp:
+    + journald, logging deamon
+    + networkd: quản lý cấu hình mạng
+    + udevd: quản lý /dev và hotplugging
+    + logind: quản lý đăng nhập
+    + systemctl: tool để control systemd
+        - systemctl status: status của tất cả service
+        - systemctl status <service>: status của 1 service
+        - systemctl [start|strop] <service>: start/stop 1 service
+        - systemctl [enable|disable] <service>: enable/disable 1 service
+        - systemctl list-units: list all available units
+        - journalctl -a: all logs
+        - journalctl -f: show the last entries, and keep printing new entries as they arrive
+        - journalctl -u: logs from a particular service
+    + ...
+## Linux graphics stack overview
+![alt text](image-23.png)
+## Display controller support - trình điều khiển đồ họa
+- Linux dùng các công nghệ dưới đây để xuất hình ảnh ra màn hình, chúng nằm ở tầng sát phần cứng, chúng nói chuyện với phần cứng
+- fbdev
+    + công nghệ cũ, hỗ trợ hiển thị đồ họa trên Linux
+    + không nên dùng nữa
+- DRM
+    + Direct rendering Manager 
+    + tiêu chuẩn quản lý card đồ họa và màn hình của Linux
+    + hỗ trợ các trình điều khiển màn hình của Soc hoặc card màn hình và nhiều chuẩn kết nối: HDMI, Displayport, ...
+    + hỗ trợ các màn hình I2C, SPI
+    + Device được xuất hiện ở `/dev/dri/cardX`
+    + thư viện hỗ trợ: `libdrm` và công cụ test `modetest`
+## GPU support: OpenGL acceleration
+- Có 2 cách tiếp cận để viết driver cho GPU
+    + Open-source
+        - 1 kernel driver nằm trong DRM subsystem sẽ gửi lệnh tới GPU và quản lý memory
+        - thư viện user-space `mesa3d` xử lý các OpenGL API, chứa các logic của GPU
+    + Proprietary (độc quyền)
+        - GPU được cung cấp driver bởi vendor
+        - chỉ có vendor mới bảo trì được 
+## Concept of display servers
+- Đặt vấn đề: Linux chỉ cho phép 1 ứng dụng chiếm màn hình, chuột, bàn phím tại 1 thời điểm. Nếu không có ai quản lý, các ứng dụng sẽ tranh nhau để hiển thị -> Vì vậy, Display servers ra đời để quản lý việc này
+- Display servers là 1 user space app đặc biệt
+    + Chia sẻ sân khấu (dồn kênh - Multiplexing): cho phép nhiều client app hiển gửi window của chúng tới
+    + Sắp xếp các window của các app theo layer, như việc mở nhiều cửa sổ đề lên nhau
+    + Phân phát các sự kiện tới client phù hợp, dựa vào đang focus window nào
+## X11 and X.org
+- Dipslay server đời đầu là X.org
+- Chúng nằm ở tầng sát user-space
+- Thực hiện giao thức X11 để giao tiếp giữa client và server, hỗ trợ local qua UNIX socket và qua mạng với giao thức TCP
+- Trong LInux ngày nay, nó chạy với tầng dưới là `DRM` hoặc `fbdev`
+- X.org đã lỗi thời
+## Wayland
+- Là giao thức truyền thông quy định các giao tiếp giữa display server và client của nó
+- Nó cũng là bộ thư viện viết bằng C để implement giao thức đó
+- Wayland compositor: là 1 máy chủ dùng Wayland protocol
+- Chúng nằm ở tầng sát user-space, quản lý và sắp xếp cửa sổ ứng dụng
+- Đây là giải pháp hiện đại để thay thế cho X11, dựa nhiều vào các công nghệ OpenGL
+- Wayland compositor: có nhiều compositor để thực hiện Wayland protocol
+    + Weston: phiên bản chính chủ do Wayland viết ra, gọn nhẹ, đơn giản, tạo giao diện đơn giản cho hệ thống nhúng
+    + Mutter: được dùng với Ubuntu, Fedora
+    + wlroots: thư viện wayland compositor
+        - Cage: bộ compositor thiết kế để hiển thị ứng dụng tràn màn hình, không có tabbar hay thanh tiêu đề cửa sổ
+        - swayWM: bộ compositor sắp xếp cửa sổ theo dạng lưới
+## Concept of graphics toolkits
+- X11 và Wayland là giao thức low-level
+- Việc thiết kế ứng dụng bằng cách dùng trực tiếp các giao thức này sẽ rất khó
+- Vì vậy, các toolkits đồ họa ra đời để hỗ trơ:
+    + 1 số hoat động trên tầng 1 display server: X11, Wayland
+    + 1 số khác hoạt động trực tiếp ngay trên tầng DRM + input
+- Widget-oriented toolkits: công cụ tạo button, window, ...
+- Game-oriented toolkits
+- ![alt text](image-24.png)
+- Các toolkits phổ biến:
+    + Qt
+        - thuộc toolkits graphics
+        - framework graphics
+    + Gtk
+        - toolkits dành cho môi trường pc
+        - ít dùng trong embedded
+        - được cấu thành từ: glib, pango (text handling), cairo (vector graphics), gtk (widget library)
+        - yêu cầu display server là X11 hoặc wayland
+    + Flutter
+        - cũng là 1 toolkits
+    + SDL
+        - thư viện phát triển đa nền tảng, cung cấp truy cập low level vào audio, keyboard, graphics
+        - code bởi C
+        - không có sẵn widget (button, ...)
+        - thường ứng dụng cho game, media player, custom UI
+    + LVGL
+        - nhẹ, hướng tới micro-controller
+## Linux multimedia stack overview
+- ![alt text](image-25.png)
+- các hệ thống xử lý multimedia trong Linux
+    + Audio stack
+        - kernel side: gồm có ALSA subsystem: chứa driver cho audio interface và audio codec, thể hiện qua `/dev/snd/`, dùng thư viện `alsa-lib`
+            + Audio server:
+                - cần thiết khi có nhiều nguồn phát âm thanh, nó sẽ phân phối âm thanh ra loa
+    + Video stack
+        - kernel side: 
