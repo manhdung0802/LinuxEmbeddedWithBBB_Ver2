@@ -1351,9 +1351,9 @@ Example: arm-linux-
 - Mô hình đối tượng: interfaces, objects, methods, signals
 ## systemd
 - Modern init system, được dùng rất nhiều, tương tự Busybox
-- Phức tạp hơn Busybox nhưng mạnh mẽ hơn
+- Phức tạp hơn Busybox nhưng mạnh mẽ hơn, có thể boot lâu hơn vì có cần chuẩn bị sẵn sàng cho các service và app phức tạp
 - chỉ hỗ trợ glibc
-- Cung cấp các tính năng:
+- Cung cấp các tính năng cho user-space như:
     + Khởi động song song các service, có tính đến dependencies giữa chúng
     + giám sát các service
     + khởi động dịch vụ theo nhu cầu, thông qua cơ chế socket activation
@@ -1451,9 +1451,32 @@ Example: arm-linux-
 ## Linux multimedia stack overview
 - ![alt text](image-25.png)
 - các hệ thống xử lý multimedia trong Linux
-    + Audio stack
+    + Audio stack - hệ thống xử lý âm thanh
         - kernel side: gồm có ALSA subsystem: chứa driver cho audio interface và audio codec, thể hiện qua `/dev/snd/`, dùng thư viện `alsa-lib`
             + Audio server:
                 - cần thiết khi có nhiều nguồn phát âm thanh, nó sẽ phân phối âm thanh ra loa
-    + Video stack
-        - kernel side: 
+    + Video stack - hệ thống xử lý video
+        - kernel side: gồm có Video4Linux subsystem (V4L)
+            + hỗ trợ camera như webcam
+            + hỗ trợ tăng tốc phần cứng HW accelerator: H264, H265
+            + thể hiện qua `/dev/videoX`
+        - Thư viện:
+            + libv4l (cũ)
+            + libcamera (mới)
+    + GStreamer
+        - là thư viện để xây dựng media component
+        - cho phép tạo pipeline để chuyển đổi, conver, hiển thị cho audio và video
+        - được cấu thành từ số lượng lớn plugins
+## Linux network stack
+- ![alt text](image-26.png)
+## Thực hành
+- /lib/systemd: chứa các file cấu hình cho các target và service ở tầng userspace
+- /lib/udev/rules.d: các quy tắc chuẩn dành cho udev
+    + 80-drivers.rules: cho phép udev load kernel modules cho detected devices nhờ vào modules.alias trong /lib/modules/<version>
+        - khi 1 device mới được phát hiện, kernek pass biến MODALIAS vào cho udev.BIến này chứa thông tin về loại bus mà thiết bị đó cắm vào
+        - nhờ vào module aliases, module chính xác sẽ được load
+    + debug command cho udev: `udevadm monitor`
+        - xem thêm giá trị MODALIAS: `udevadm monitor --env`
+    + modalias của nunchuk: `of:NjoystickT(null)Cnintendo,nunchuk`
+        - of: Open Firmware
+        - khi 1 phần cứng đươc phát hiện, nunchuk được udev nạp nhờ alias trùng khớp
