@@ -50,6 +50,50 @@
     - [3. Using block filesystems](#3-using-block-filesystems)
 - [Flash storage and filesystems](#flash-storage-and-filesystems)
     - [1. Block devices vs raw flash devices: reminder](#1-block-devices-vs-raw-flash-devices-reminder)
+    - [2. NAND flash storage: constraints](#2-nand-flash-storage-constraints)
+    - [3. The MTD subsystem](#3-the-mtd-subsystem)
+    - [4. MTD partitioning](#4-mtd-partitioning)
+    - [5. MTD partitions on Linux](#5-mtd-partitions-on-linux)
+    - [6. Commands to manage NAND devices](#6-commands-to-manage-nand-devices)
+    - [7. Flash wear leveling](#7-flash-wear-leveling)
+    - [8. UBI](#8-ubi)
+    - [9. UBIFS - Unsorted Block Images file system](#9-ubifs---unsorted-block-images-file-system)
+    - [10. Linux: Block emulation layer](#10-linux-block-emulation-layer)
+- [Cross-compiling user-space libraries and applications](#cross-compiling-user-space-libraries-and-applications)
+    - [1. Intergrating user-space libraries and applications](#1-intergrating-user-space-libraries-and-applications)
+    - [2. Concept of build system](#2-concept-of-build-system)
+    - [3. Target and staging spaces](#3-target-and-staging-spaces)
+    - [4. Autotools](#4-autotools)
+    - [5. CMake](#5-cmake)
+    - [6. Meson](#6-meson)
+    - [7. pkg-config](#7-pkg-config)
+    - [8. Thực hành](#8-thực-hành)
+- [Embedded system building tools](#embedded-system-building-tools)
+    - [1. Approaches](#1-approaches)
+    - [2. Embedded Linux build systems](#2-embedded-linux-build-systems)
+    - [3. Builtroot](#3-builtroot)
+    - [4. Yocto Project / OpenEmbedded](#4-yocto-project--openembedded)
+    - [5. So sánh Buildroot và Yocto](#5-so-sánh-buildroot-và-yocto)
+    - [6. Thực hành](#6-thực-hành)
+- [Overview of major embedded Linux software stacks](#overview-of-major-embedded-linux-software-stacks)
+    - [D-Bus](#d-bus)
+    - [systemd](#systemd)
+    - [Linux graphics stack overview](#linux-graphics-stack-overview)
+    - [Display controller support](#display-controller-support)
+    - [GPU support: OpenGL acceleration](#gpu-support-opengl-acceleration)
+    - [Concept of display servers](#concept-of-display-servers)
+    - [X11 and X.org](#x11-and-xorg)
+    - [Wayland](#wayland)
+    - [Concept of graphics toolkits](#concept-of-graphics-toolkits)
+    - [Linux multimedia stack overview](#linux-multimedia-stack-overview)
+    - [Linux network stack](#linux-network-stack)
+    - [Thực hành](#thực-hành)
+- [Embedded Linux application development](#embedded-linux-application-development)
+    - [Developing applications on embedded Linux](#developing-applications-on-embedded-linux)
+    - [Debugging](#debugging)
+    - [Tracing and profiling](#tracing-and-profiling)
+    - [Memory debugging](#memory-debugging)
+    - [Thực hành](#thực-hành-1)
 
 # Cross-compiling toolchains
 ## 1. Toolchain definition
@@ -1204,7 +1248,7 @@ Example: arm-linux-
     + CC=arm-linux-gcc ./configure
     + make
     + make DESTDIR=$HOME/embedded-linux-bbb-labs/thirdparty/staging install
-    + dùng strip để giảm dung lượng file và thư viện (bỏ Debugging symbols) trước khi đưa vào board
+    + dùng arm-linux-strip để giảm dung lượng file và thư viện (bỏ Debugging symbols) trước khi đưa vào board
 - libgpiod: thư viện để quản lý gpio
     + gpioinfo: kiểm tra pin thuộc gpiochip nào
 
@@ -1354,7 +1398,7 @@ Example: arm-linux-
 - Phức tạp hơn Busybox nhưng mạnh mẽ hơn, có thể boot lâu hơn vì có cần chuẩn bị sẵn sàng cho các service và app phức tạp
 - chỉ hỗ trợ glibc
 - Cung cấp các tính năng cho user-space như:
-    + Khởi động song song các service, có tính đến dependencies giữa chúng
+    + Khởi động song song các service giúp boot nhanh hơn, có tính đến dependencies giữa chúng
     + giám sát các service
     + khởi động dịch vụ theo nhu cầu, thông qua cơ chế socket activation
     + quản lý tài nguyên của service: CPU limit, memory limit
@@ -1480,3 +1524,187 @@ Example: arm-linux-
     + modalias của nunchuk: `of:NjoystickT(null)Cnintendo,nunchuk`
         - of: Open Firmware
         - khi 1 phần cứng đươc phát hiện, nunchuk được udev nạp nhờ alias trùng khớp
+
+# Embedded Linux application development
+## Developing applications on embedded Linux
+- Application development
+    + Việc phát triển ứng dụng embedded tương tự như phát triển trong môi trường Linux
+- Meson
+    + meson.build
+        ```
+        project('example', 'c')
+        executable('demo', 'main.c')
+        ```
+    + meson.build cho nhiều program và source files
+        ```
+        project('example', 'c')
+        src_demo1 = ['demo1.c', 'foo1.c']
+        executable('demo1', src_demo1)
+        src_demo2 = ['demo2.c', 'foo2.c']
+        executable('demo2', src_demo2)
+        ```
+    + meson_options.txt
+        ```
+        option('demo-debug', type : 'feature', value : 'disabled')
+        ```
+    + meson.build
+        ```
+        project('tutorial', 'c')
+        demo_c_args = []
+        if get_option('demo-debug').enabled()
+        demo_c_args += '-DDEBUG'
+        endif executable('demo', 'main.c', c_args: demo_c_args)
+        ```
+    + Library dependencies with meson
+        - meson.build
+            ```
+            project('tutorial', 'c')
+            gtkdep = dependency('gtk+-3.0')
+            executable('demo', 'main.c', dependencies : gtkdep)
+            ```
+        - meson tìm thư viện gtk+-3.0 bằng pkg-config rồi gắn đường dẫn cho gtkdep
+        - khi compile, gắn gtkdep vào dependencies 
+- Debugging
+    + GDB: GNU Project Debugger
+        - hỗ trợ c/c++, ...
+        - giao diện command line
+        - có thể dùng để control chương trình đang chạy, đặt breakpoint, xem chương trình làm gì khi bị crash, ...
+        - `gdb <program>`: debug chương trình 
+        - `gdb -p <pid>`: gắn gdb vào tiến trình đang chạy
+        - `run prog_arg1`: lệnh để run program khi dùng GDB để start program
+        - `break foobar`: đặt breakpoint tại entry của function foobar
+        - `break foobar.c:42`: đặt breakpoint vào file foobar.c, dòng 42
+        - `print var`, `print $reg`: in giá trị
+        - `info registers`: hiển thị kiến trúc thanh ghi
+        - `continue` hoặc `c`: tiếp tục câu lệnh sau breakpoint
+        - `next` hoặc `n`: lệnh tiếp theo
+        - `step` hoặc `s`: lệnh tiếp, đi vào subfunction
+        - `stepi` hoặc `si`: chỉ chạy tiếp 1 lệnh của ngôn ngữ máy chứ không phải 1 dòng code
+        - `finish`: chạy hết hàm hiện tại cho đến khi hàm đó kết thúc
+        - `backtrace` hoặc `bt`: hiển thị program stack
+    + Remote debugging
+        - hệ thống embedded thông thường bị strip để bỏ phần thừa, bao gồm cả log debug nên rất khó trace thông tin
+        - việc cài gdb lên các hệ thống embedded là không khuyến khích vì nó gây tốn tài nguyên
+        - Phương pháp remote debugging
+            + `ARCH-linux-gbd` được dùng để chạy ở máy host
+            + `gbdserver`: chạy ở targer (chỉ khoảng 400KB ở arm)
+        - Remote debugging architecture:
+            + ![alt text](image-27.png)
+        - target setup: có 3 cách sau
+            + chạy 1 program bằng lệnh `gdbserver`, chương trình không chạy ngay mà chờ lệnh từ host
+                - `gdbserver /dev/ttyS0 <executable> <args>`
+                - hoặc `gdbserver :1234 app`
+            + gắn `gdbserver` vào 1 chương trình đang chạy
+                - `gdbserver --attach <port> <pid>`
+            +  khởi động gdbserver ở chế độ chờ
+                - `gdbserver --multi <port>`
+        - host setup
+            + chạy `ARCH-linux-gdb <executable>` rồi dùng các lệnh sau:
+                - `gdb> set sysroot <library-path>`: chỉ ra nơi chứa shared libraries
+                - để kết nối target:    
+                    + `target remote <ip-addr>:<port>`: nếu qua network
+                    + `target remote /dev/ttyUSB0`: nếu qua usb serial
+                    + nếu chạy gdbserver ở target với --multi, thì thay `remote` bằng `extended remote`
+                    + nếu không set executable, cần khai báo executable nằm ở đâu bằng lệnh `set remote exec-file <part on target>`
+    + Coredumps for port mortem analysis
+        - Đôi khi việc gắn gdb là không thể khi đang có crash
+        - May mắn, linux tạo 1 core file ghi lại toàn bộ process memory tại thời điểm crash với format ELF. GDB có thể dùng file này để phân tích crash
+        - ở target:
+            - dùng `ulimit -c unlimited` để enable chức năng tạo core file khi crash
+            - output name và đường dẫn của file coredump có thể được thay đổi sử dụng `/proc/sys/kernel/core_pattern`, để đổi name và đường dẫn, dùng lệnh `echo /tmp/mycore /proc/sys/kernel/core_pattern` (đặt tên coredumpt là mycore và lưu vào /tmp)
+            - tùy vào từng hệ thống, `core_pattern` có thể bị ghe đè tự động bởi 1 số software để xử lý core file hoặc bị disable việc tạo core file (ví dụ như systemd)
+        - ở host:
+            + sau khi crash, lấy core file từ target về và chạy: `ARCH-linux-gdb application-binary core-file`
+    + minicoredumper - chương trình 
+        - vấn đề: các file coredump có thể có dung lượng rất lớn đối với các app phức tạp vì nó chứa toàn bộ thông tin, và coredump yêu cầu tool để phân tích, và core dump không có thông tin về các process khác trong hệ thống
+        - minicoredump là userspace tool được tạo dựa vào các tính năng core dump tiêu chuẩn:   
+            + nó hoạt động dựa trên khả năng chuyển dữ liệu core dump tới 1 user space program thông qua 1 pipe
+            + có ít dependencies 
+            + tính năng nén bộ nhớ
+            + có file cấu hình để quyết định data nào muốn ghi ra output: recept 
+            + mỗi app có file cấu hình riêng
+        - goals:
+            + file core dump nhỏ nhất
+            + tùy chỉnh coredump: chỉ lưu những thông tin mình muốn chứ không phải ghi toàn bộ như gdb
+            + state snapshot: khi 1 process bị crash, có theo dõi được các process khác để lây thêm thông tin
+        - dựa vào 1 file cấu hình JSON, nó có thể:
+            + chỉ lưu các section liên quan (stack, heap, ...)
+            + nén file output
+            + lưu thêm thông tin từ /proc
+        - ví dụ về file cấu hình:
+            + ![alt text](image-28.png)
+        - ví dụ về recept: file cấu hình cho từng app
+            + ![alt text](image-29.png)
+    + libminicoredumper - thư viện để nhúng vào app 
+        - chiếm ít bộ nhớ
+        - không ảnh hưởng runtime
+        - API đơn giản
+        - ![alt text](image-30.png)
+        - ![alt text](image-31.png)
+        - ![alt text](image-32.png)
+        - ![alt text](image-33.png)
+    + live dump
+        - dùng để quan sát các running process khác khi 1 process bị crash
+        - ![alt text](image-34.png)
+        - ![alt text](image-35.png)
+- Tracing and profiling
+    + strace - system call tracer
+        - tích hợp vào hệ thống bằng cách build cross với các build system
+        - cho phép xem bất kỳ process nào đang làm gì: access file, allocate memory
+        - hiệu quả trong phân tích bug nhỏ
+        - Usage:    
+            + strace <command>: start 1 process mới
+            + stace -f <command>: theo dõi thêm process con
+            + strace -p <pid>: theo dõi process đang chạy
+            + strace -c <command>: thống kê các system call
+            + strace -e <expr> <command>: dùng biểu thức để lọc
+        + strace filtering
+            - `strace -e 'openat,write' cat Makefile` chỉ hiển thị lệnh cụ thể của systemcall
+            - `strace -e '!poll' cat Makefile`: giám sát tất cả trừ lệnh poll
+            - `strace -e 'status=failed' cat Makefile`: chỉ show các system call mà return status cụ thể
+            - `strace -P '/etc/ld.so.cache cat Makefile`: trace cách mà 1 file được truy cập và sử dụng bởi các system call
+            - `starce --tips`: help command
+    + Itrace
+        - là 1 tool để trace shared library calls được dùng bởi 1 chương trình và theo dõi tất cả signal mà nó nhận
+        - là công cụ bổ sung hữu ích cho stace vì strace chỉ theo dõi system call
+        - `-S`: theo dõi luôn system call
+        - `-c`: summary output
+        - làm việc tốt với glibc, kém với uClibc và không hỗ trợ musl
+    + ftrace
+        - chức năng tracing của kernel 
+        - có thể trace được các vị trí được định nghia sẵn trong kernel, xác định được các event quan trọng trong kernel
+        - theo dõi bất kì hàm nào trong kernel
+        - theo dõi được user-space app
+        - hiệu năng cao
+        - có thể được theo dõi qua tracefs filesystem
+        - `trace-cmd`: CLI tool để sử dụng ftrace
+        - có thể dùng để hiểu hoạt động chung của system cũng như các vấn đề về hiệu năng
+    + kernelshark
+        - tool visualization cho ftrace
+    + perf
+        - công cụ đo đạc, kiểm tra CPU counter, tracepoints, kprobes, uprobes
+        - có sẵn trong linux kernel
+        - hỗ trợ các sự kiện: hardware event, software event
+        - perf examples:
+            + ![alt text](image-36.png)
+    + gprof
+        - là công cụ đo application-level
+        - là 1 phần của binutils
+        - cần có `-pg` option tại thời điểm build
+        - chạy chương trình của bạn bình thường, chương trình sẽ tạo ra gmon.out 
+        - dùng gprof để phân tích gmon.out
+- Memory debugging
+    + Valgrind
+        - tool để phân tích động, phát hiện vấn đề quản lý bộ nhớ và threading
+        - là tool phổ biến để phân tích lỗi về memory
+        - chạy ở target, dễ tích hợp bằng Yocto hoặc Buildroot
+        - Valgrind tools:
+            + Memcheck: phát hiện vấn đề quản lý bộ nhớ
+            + Cachegrind: phân tích cache, giả lập bộ nhớ đệm L1, D1 và L2 trong CPU để chỉ ra chính xác nguồn gốc gây cache misses
+            + Callgrind: extension của Cachegrind, cung cấp thêm thông tin về call graphs
+            + Massif: đo đạ thông tin heap của 1 chương trình
+            + Helgrind: debug cho thread để tìm date race trong multithread, tìm memory nào được truy cập bởi nhiều thread mà không lock
+            + Kcachegrind - Visualizing Valgrind profiling data
+## Thực hành
+- cấu hình perf trong Kernel tool của buildroot
+- cấu hình ltrace, strace trong Debugging, profiling and benchmark
