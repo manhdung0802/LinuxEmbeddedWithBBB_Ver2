@@ -192,6 +192,7 @@ MODULE_AUTHOR("William Shakespeare");
             + lệnh này nói với kernel build system rằng hãy build hello.c khi CONFIG_xxx được bật (cho cả build static hoặc module)
                 - run `make xconfig` để thấy optione vừa được thêm
                 - run `make` để build
+        - sau khi build xong, module sẽ được khởi động cùng hệ thống, check lại /proc/version
 - Hello module với parameter
     ```c
     // SPDX-License-Identifier: GPL-2.0
@@ -244,3 +245,192 @@ MODULE_AUTHOR("William Shakespeare");
         module_param(who, charp, 0644); //owner: read write, others: read
         MODULE_PARM_DESC(who, "Name of who"); // mô tả param
         ```
+    + Linux cung cấp công cụ để kiểm tra coding standard: 
+        - `~/linux-kernel-bbb-labs/src/linux/scripts/checkpatch.pl --file --no-tree hello_version.c`
+    + truyền tham số do kernel module nếu được build static bằng cách thêm vào bootargs chuỗi: `hello.who=dung`
+
+# Describing hardware devices
+## Discoverable hardware: USB and PCI
+- Discoverable hardware:
+    + 1 số bus có cơ chế phát hiện phần cứng, phổ biến đó là USB và PCI
+    + Hardware device được đánh số, và đặc tính của chúng được lấy ra bởi 1 driver hoặc bus controller
+    + Lệnh:
+        - `lsusb`: liệt kê các USB device
+        - `lspci`: liệt kê các PCI device
+    + 1 device được detect không có nghĩa rằng có 1 kernel driver gắn với nó
+    + Việc gắn với kernel driver cần dựa vào product ID/vendor ID hoặc các đặc tính như: device class, device sub-class, ...
+## Describing non-discoverable hardware
+- Có 3 cách mô tả phần cứng non-discoverable
+    + trực tiếp trong OS/Bootloader code
+    + dùng ACPI table
+    + dùng device tree
+## Device tree
+- Device tree: from source to blob (từ source tới file nhị phân)
+    + `.dts`: device tree source
+    + `dtc`: device tree compiler 
+        - Lệnh build: `dtc -I dts -O dtb -o foo.dtb foo.dts`
+        - Lệnh đọc: `dtc -I dtb -0 dts foo.dtb`
+    + `.dtb`: device tree blob (device tree binary)
+    + DTB còn gọi là FDT - Flattened device tree
+- Where are Device tree sources located?    
+    + `arch/<ARCH>/boot/dts/<vendor>`
+    + trong U-boot, TF-A cũng có sẵn folder chứa device tree được copy từ Linux kernel source
+- Device tree base syntax
+    + ![alt text](image-3.png)
+- DT overall structure: simplified example
+    + ![alt text](image-4.png)
+    + ![alt text](image-5.png)
+    + ![alt text](image-6.png)
+    + ![alt text](image-7.png)
+    + ![alt text](image-8.png)
+    + ![alt text](image-9.png)
+- Device tree inheritance
+    + device tree có thể được chia thành nhiều file
+    + `.dtsi`: là file dùng để include vào file khác
+        - chứa định nghĩa Soc-level
+        - định nghĩa chung cho 1 số lượng board
+    + `.dts`: là file device tree cuối cùng
+    + việc ghi đè (overlay) device tree được tuân theo thứ tự include, cho phép file sau ghi đè giá trị của file trước
+- DT inheritance in Bone Black support
+    + ![alt text](image-10.png)
+- Device tree design principles
+    + device tree mô tả phần cứng chứ không phải cách cấu hình phần cứng
+    + device tree đọc lập với OS, khi OS thay đổi thì device tree không cần đổi
+    + device tree còn mô tả các hardware component mà tích hợp với hệ thống, không phải cách chúng hoạt động
+- The properties
+    + có thể dùng chung và áp dụng cho phần lớn các nodes: compatible, reg, ...
+    + bao hàm mối quan hệ consumer-provider
+    + đặc thù theo từng subsystem: tất cả device của cùng 1 class có thể dùng chúng, bắt đầu bằng class name
+    + node cha (i2c controller, spi controller, ...) rồi đến node con (các device nối vào bus i2c, spi, ... đó)
+    + đặc thù theo vendor, device: mô tả đặc tính cho riêng vendor/device, bắt đầu bằng tiền tố <vendor>
+    + 1 số thuộc tính đã lỗi thời
+- The compatible property
+    + mô tả specific binding mà node đó tuân theo
+    + định danh programming model của device
+    + OS dùng thuộc tính này để tìm driver phù hợp cho device
+    + thường mô tả kèm tên vendor, model: `arm,armv7-timer`, `gpio-keys`
+    + giá trị đặc biệt `simple-bus`: là bus nơi mà các node con là memory-mapped device
+- compatible property and Linux kernel drivers
+    + Linux nhận diện các platform device thông qua:
+        - các node ở cao nhất chứa `compatible`
+        - các sub-note của `simple-bus`
+    + sub-node của I2C controller là I2C device
+    + sub-node của SPI controller là SPI device
+    + mỗi Linux driver có bảng compatible hỗ trợ `struct of_device_id[]`
+    + khi 1 device tree node match compatible với driver, device đó được liên kết với driver đó
+- reg property
+    + mô tả địa chỉ base physical address và size của memory-mapped register, có thể chứa nhiều entries cho nhiều cùng register
+        ```c
+        sai4: sai@5007 {
+            reg = <0x5007 0x4>, <0x5100 0x4>;
+        }
+        ```
+    + i2c device trên i2c bus
+        ```c
+        &i2c {
+            hdmi-transmitter@39 {
+                reg = <0x39>;
+            };
+ (label ->) cs42l51: cs42l51@4a {
+                reg = <0x4a>;
+            };
+        }
+        ```
+    + spi device: chip select number
+        ```c
+        &qspi {
+            flash0: mx66l51235l@0 {
+            reg = <0>;
+            };
+            flash1: mx66l51235l@1 {
+            reg = <1>;
+            };
+        };
+        ```
+    + địa chỉ của node sau dấu @ phải là địa chỉ của vùng nhớ đầu tiên được khai báo trong `reg`
+        ```c
+        sai4: sai@50027000 {
+            reg = <0x50027000 0x4>, <0x500273f0 0x10>;
+        };
+        ```
+- cell property
+    + giá trị của các thuộc tính phải vừa vặn trong vùng 32bit, được gọi là các cell
+    + khi khai báo `reg = <0x50027000 0x4>, <0x500273f0 0x10>;`, OS không hiểu đang muốn nói tới trường hợp nào trong 4 trường hợp sau
+        ```c
+            reg = <0x50027000>, <0x4>, <0x500273f0 0x10>;
+            reg = <0x50027000 0x4 0x500273f0>, <0x10>;
+            reg = <0x50027000>, <0x4 0x500273f0 0x10>;
+            reg = <0x50027000 0x4 0x500273f0 0x10>;
+        ```
+    + Vì vậy cần thuộc tính để định nghĩa đúng format mình muốn
+        - `#address-cells = <x>`: chỉ thị số lượng cell để chứa địa chỉ, tức là địa chỉ sẽ rộng 1 cell (32bit)
+        - `#size-cells = <y>`: chỉ thị số lượng cell để chứa kích thước của vùng, tức là kích thước vùng nhớ của node con là 1 cell
+        - node cha sẽ khai báo 2 thuộc tính này, và node con sẽ tuân theo
+        - Ví dụ: 
+            ```
+            #address-cells = <1>
+            #size-cells = <1>
+            reg = <0x15 0x4>
+            ```
+            + address-cells là 1 thì chỉ lấy 1 cell đầu tiên là 0x15
+            + size-calls là 1 thì chỉ lấy 1 cell tiếp theo là 0x4
+            ```
+            #address-cells = <2>
+            #size-cells = <1>
+            reg = <0x15 0x34 0x4>
+            ```
+            + address-cells là 2 thì lấy 2 cell đầu tiên là 0x15 0x34
+            + size-calls là 1 thì chỉ lấy 1 cell tiếp theo là 0x4
+            ```
+            spi@300000 {
+                #address-cells = <1>;
+                #size-cells = <0>;
+                flash@1 {
+                    reg = <1>;
+                };
+            };
+            ```
+- status property
+    + chỉ định device có được dùng hay không
+    + "okay", "ok", "disabled"
+- Resource: interrupts, clocks, DMA, reset lines, ...
+    + device tree mô tả bộ điều khiển như 1 node
+    + node đó sẽ được dùng trong các node khác
+    + ![alt text](image-11.png)
+        - khi 1 node dùng node khác, cấu hình trong dấu `<>` phải tuân theo cell của node khác
+        - ví dụ node khác yêu cầu cell là 3 thì trong `<>` cần có 3 tham số
+- generic suffixes - các hậu tố chung
+    + `xxx-gpios`   
+        - dùng để phân biệt các chân của gpio
+        - xxx là tên ví dụ: `power-gpios`, `reset-gpios`, ...
+    + `xxx-names`:
+        - đặt tên cho các item liên quan
+        - cho phép driver tìm kiếm bằng tên thay vì ID
+        - thứ tự của `xxx-names` khớp với item
+        ```c
+        uart0@4000c000 {
+            dmas = <&edma 26 0>, <&edma 27 0>;
+            dma-names = "tx", "rx";
+        };
+        ```
+            - <&edma 26 0> là "tx"
+            - <&edma 27 0> là "rx"
+- how to validate Device tree content
+    + Dựa vào spec của device tree: `https://www.devicetree.org/specifications/`
+    + Dựa vào device tree binding - file mô tả phần cứng: `https://github.com/devicetree-org/dt-schema/tree/main/dtschema/schemas`
+- device tree binding
+    + các quy tắc về thông số kỹ thuật được viết dạng yaml, dễ dàng đọc, tool dễ phân tích
+    + yaml quy định các viết phần cứng trong device tree
+    + tức là khi viết device tree, thì file yaml định nghĩa các thuộc tính và format để khai báo
+    + bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/Documentation/devicetree/bindings
+- validate device trees
+    + `dtc` chỉ verify syntax
+    + yaml sẽ validate tính đúng đắn
+    + Linux kernel cung cấp lệnh: 
+        - `make dt_binding_check`: kiểm tra xem viết đúng cú pháp không
+        - `make dtbs_check`: kiểm tra tính đúng đắn
+    + 2 lệnh trên chạy cho toàn bộ hệ thống Linux sẽ mất thời gian, thay vào đó giới hạn phạm vi kiểm tra với file yaml cụ thể bằng lệnh: 
+        - `make DT_SCHEMA_FILES=Documentation/devicetree/bindings/trivial-devices.yaml dt_binding_check`
+        - `make DT_SCHEMA_FILES=Documentation/devicetree/bindings/trivial-devices.yaml dtbs_check`
+- Binding syntax: base structure
+    + 
