@@ -331,7 +331,7 @@ MODULE_AUTHOR("William Shakespeare");
             hdmi-transmitter@39 {
                 reg = <0x39>;
             };
- (label ->) cs42l51: cs42l51@4a {
+            cs42l51: cs42l51@4a {
                 reg = <0x4a>;
             };
         }
@@ -433,4 +433,101 @@ MODULE_AUTHOR("William Shakespeare");
         - `make DT_SCHEMA_FILES=Documentation/devicetree/bindings/trivial-devices.yaml dt_binding_check`
         - `make DT_SCHEMA_FILES=Documentation/devicetree/bindings/trivial-devices.yaml dtbs_check`
 - Binding syntax: base structure
-    + 
+    + Mỗi file YAML định nghĩa 1 cấp độ phân cấp device tree, tối đa là 2 cấp khi có node con
+        - ![alt text](image-12.png)
+        - `%YAML`: định nghĩa language version
+        - `$id`: có thể không phải là URL thực, nhưng là mã định danh duy nhất
+        - `$schema`: tham chiếu tới meta-schema mà file này cần được xác thực
+        - `property`: nơi bắt đầu định nghĩa, tất cả thuộc tính cần được liệt kê, tên biến viết thường, theo sau là dấu `:`, có 1 dòng trống giữa các property
+- Binding syntax: types
+    + ![alt text](image-13.png)
+    + các property cần phải xác định kiểu dữ liệu thông qua `type:` hoặc `ref:`
+        - thuộc tính boolean không yêu cầu giá trị
+        - giá trị số có thể có dấu hoặc không dấu, và luôn là số 32bit
+        - String nên được define
+        - Mảng và matric cũng cần thiết
+    + Các binding chung đã set type cho nhiều property
+        - giá trị/số lượng phần tử của chúng có thể bị giới hạn
+        - type không cần phải lặp lại
+    + `dt-schema` sẽ áp dụng 1 kiểu dữ liệu bựa vào hậu tố, ví dụ -hz, -ohms, -us
+- Binding syntax: child nodes
+    + ![alt text](image-14.png)
+    + child node đơn giản là 1 property
+    + type phải set là `type: object`
+    + Nếu node con có tên cố định thì khai báo node con trong 1 node child-node
+    + Nếu node con có tên không cố định thì khai báo 1 node là `patternProperties`
+- Binding syntax: expressing constrains
+    + bên cạnh việc định nghĩa chính xác các thuôc tính và type của chúng, giá trị của property cần được giới hạn:
+        - tất cả property đều có thể có thêm tham số `description`, để con người đọc
+        - tăng ràng buộc để giảm thiểu rủi ro
+        - mỗi ràng buộc nằm ở 1 dòng
+- Binding syntax: numerical constrains
+    + ![alt text](image-15.png)
+    + giới hạn bằng việc đặt minimum/maximum của giá trị
+    + đặt giá trị default cho property
+    + đặt minItems/maxItems cho mảng
+- Binding syntax: lists and dictionaries
+    + ![alt text](image-16.png)
+    + biểu diễn các giá trị có thể xảy ra, giới hạn giá trị mà property có thể nhận
+        - bắt buộc giá trị duy nhất: `const`
+        - lấy giá trị từ list: `enum`
+    + `const`/`item` có thể được nhóm lại trong 1 `items` list
+    + có thể xây dựng điều kiện từ 
+        - `oneOf`: biểu thị XOR
+        - `anyOf`: biểu thị OR
+        - `allOf`: biển thị AND
+- Bindings syntax: referencing other bindings
+    + ![alt text](image-17.png)
+    + có thể viết constrains common rồi refer tới nó
+    + file common 
+        ```
+        # File: xe-co-ban.yaml (Đây là file "common" - chứa ràng buộc chung)
+        properties:
+            so-banh-xe:
+                maximum: 4  # Xe thông thường tối đa chỉ có 4 bánh
+            co-dong-co:
+                type: boolean # Giá trị bắt buộc là Đúng (True) hoặc Sai (False)
+            bien-so-xe:
+                type: string  # Phải là một chuỗi ký tự chữ và số
+        ```
+    + file refer tới common 
+        ```
+        # File: xe-may.yaml (File cấu hình cho một phần cứng cụ thể)
+        allOf:
+            - $ref: xe-co-ban.yaml  # <--- THAM CHIẾU: Lấy toàn bộ quy tắc của xe cơ bản vào đây
+
+        properties:
+            # 1. Ghi đè (Tune/Overwrite) lại thuộc tính chung cho đúng với thực tế của xe máy:
+            so-banh-xe:
+                const: 2              # Thiết bị chung bảo tối đa 4 bánh, nhưng xe máy bắt buộc phải là 2 bánh!
+
+        # 2. Thêm thuộc tính đặc thù (Specific property) chỉ xe máy mới có:
+        dung-tich-xi-nhan:
+            type: integer
+            maximum: 150          # Ví dụ xe máy thông thường tối đa 150cc
+        ```
+- Bindings syntax: altering on presence of properties
+    + ![alt text](image-18.png)
+    + đôi khi ta cần các mô tả linh hoạt hơn
+        - phụ thuộc giữa các property
+            + 1 property có thể cần có property khác
+            + nếu cả 2 thuộc tính cùng xuất hiện hoặc cùng không xuất hiện, dependency cần biểu diễn 2 chiều
+        - thay đổi constrain dựa theo property
+            + biểu diễn bằng if/else dưới `allOf`
+            + điển hình là mỗi compatible đi kèm với constrain khác nhau
+- Bindings syntax: enforcing correct properties only
+    + ![alt text](image-19.png)
+    + các file YAML liệt kê các property và thêm constrai cho chúng
+        - việc thêm các thuộc tính chưa định nghĩa có thể xảy ra
+        - việc quên thuộc tính bắt buộc có thể xảy ra
+    + cần thêm constrain để phát hiện lỗi chính tả và các property ngoài ý muốn
+        - `required`: bắt buộc xuất hiện
+        - `additionalProperties`: ngăn thuộc tính chưa được define trong file này xuất hiện
+        - `unevaluatedProperties`: ngăn thuộc tính chưa được define trong file này xuất hiện hoặc không được refer đến thông qua `allOf`
+- Bindings syntax: validating your own bindings
+    + ![alt text](image-20.png)
+    + để test YAML thì thêm `examples` ở cuối file
+## Thực hành
+- khi thêm file dts thì cần thêm vào Makefile
+- build device tree: `make dtbs`
+- `model`: đổi tên board
