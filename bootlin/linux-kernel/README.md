@@ -522,7 +522,7 @@ MODULE_AUTHOR("William Shakespeare");
         - việc quên thuộc tính bắt buộc có thể xảy ra
     + cần thêm constrain để phát hiện lỗi chính tả và các property ngoài ý muốn
         - `required`: bắt buộc xuất hiện
-        - `additionalProperties`: ngăn thuộc tính chưa được define trong file này xuất hiện
+        - `additionalProperties: false`: ngăn thuộc tính chưa được define trong file này xuất hiện
         - `unevaluatedProperties`: ngăn thuộc tính chưa được define trong file này xuất hiện hoặc không được refer đến thông qua `allOf`
 - Bindings syntax: validating your own bindings
     + ![alt text](image-20.png)
@@ -531,3 +531,53 @@ MODULE_AUTHOR("William Shakespeare");
 - khi thêm file dts thì cần thêm vào Makefile
 - build device tree: `make dtbs`
 - `model`: đổi tên board
+- `make DT_SCHEMA_FILES=misc/nintendo,nunchuk.yaml dt_binding_check`: kiểm tra các examples trong YAML
+- Lệnh check cấu trúc device tree trong board
+    ```
+    dtc -I fs /sys/firmware/devicetree/base/ > /tmp/dts
+    grep -C10 nunchuk /tmp/dts
+    ```
+
+# Introduction to pin muxing
+## What is pin muxing
+- Các SoC ngày càng tích hợp nhiều khối hardware, trong số đó có nhiều cái cần giao tiếp với ngoại vi
+- Tuy nhiên, kích thước vật lý của chip nhỏ, vì vậy số lượng pin cũng bị giới hạn
+- Vì vậy, không phải khối internal hardware nào cũng được đưa ra pin cùng lúc
+- các pin được dồn kênh (multiplexed): chúng hiển thị chức năng của khối A hoặc B
+- việc multiplexed được xử lý bằng phần mềm
+## Pin muxing in the Linux kernel
+- `pinctrl` subsystem đã được thêm vào source Linux từ Linux 3.2
+- Subsystem này ở `drivers/pinctrl/` cung cấp hệ thống chung để xử lý pin muxing
+    + 1 pin muxing driver interface dùng để triển khai driver cho từng loại SoC nhằm cấu hình pin muxing
+    + 1 pin muxing consumer interface cho device drivers
+- Phần lớn các pinctrl driver cung cấp 1 device tree binding và pin mux phải được mô tả trong device tree: `Documentation/devicetree/bindings/pinctrl`
+- pinctrl subsystem diagram
+    + ![alt text](image-21.png)
+- Device Tree properties for consumer devices
+    + device cần pin để mux thì dùng thuộc tính `pinctrl-<x>` và `pinctrl-names` trong device tree
+        - `pinctrl-<x>`: link tới 1 cấu hình pin cụ thể ứng với state nhất định. `x` được đánh số theo thứ tự trái qua phải nếu `pinctrl-names` có nhiều tên
+        - `pinctrl-names`: gán tên gọi cho mỗi trạng thái. Nếu để `default` thì pin mux được thiết lập bởi device driver
+        - check `Documentation/devicetree/bindings/pinctrl/pinctrl-bindings.txt` để có thêm chi tiết
+- Device Tree properties for consumer devices - Examples
+    + ![alt text](image-22.png)
+    + ![alt text](image-23.png)
+        - `pinctrl-names` có 2 tên thì `pinctrl-<x>` cũng có 2 cái tương ứng cho từng name
+- Defining pinctrl configurations
+    + các cấu hình pinctrl khác nhau cần được định nghĩa như node con trong pinctrl device
+    + cấu hình có thể được define ở 
+        - `.dtsi`: cho cấu hình mà thường dùng chung trong nhiều board
+        - `.dts`: dùng cho board cụ thể
+    + `pinctrl-<x>` của device trỏ tới cấu hình pin mà nó cần thông qua 1 device tree phandle
+    + Ví dụ
+        - ![alt text](image-24.png)
+            + trong AM33xx, driver `pinctrl-single` được sử dụng để cấu hình pin trong DT.
+            + trong mỗi cấu hình pin, giá trị của `pinctrl-single,pins` cần đưa ra list của thanh ghi, value
+        - để biết giá trị cấu hình chính xác, cần xem datasheet của board và SoC
+## Thực hành
+- i2c không có khả năng tự dò tìm
+- i2cdetect sẽ bypass bằng cách đóng vai là master và gửi tín hiệu tới các device. i2cdetect quét từ 0x3 tới 0x77 rồi xem device nào phản hồi. Tuy nhiên i2cdetect có thể làm nhiễu loạn
+- output của i2cdetect: 
+    + UU: device đã được điều khiển bởi 1 driver
+    + hiện số: device chưa có driver
+- trong bảng P8, P9, cột Pin ở gần cuối, ký hiệu đó được dùng để kiểm tra pin assignment
+- FIle check enum tương ứng với các mode, pin name, ...: `/home/as/Desktop/linuxEmbeddedBBB/BBB_docs/hw-docs/am33xx.h`
