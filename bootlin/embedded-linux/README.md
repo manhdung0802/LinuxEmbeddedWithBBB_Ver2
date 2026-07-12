@@ -169,9 +169,9 @@
         - first stage bootloader: nhỏ, chạy ở SRAM, khởi tạo external DRAM
         - second stage bootloader: lớn, chạy ở external DRAM
 - Booting on AM335x:
-    + ![alt text](image.png)
+    + ![alt text](images/image.png)
 - Two stage booting sequence:
-    + ![alt text](image-1.png)
+    + ![alt text](images/image-1.png)
     + 1. ROM code load first stage bootloader từ bộ nhớ vào SRAM
     + 2. first stage bootloader chạy ở SRAM, khởi tạo DRAM
     + 3. first stage bootload load second stage bootloader từ bộ nhớ vào DRAM
@@ -180,7 +180,7 @@
     + Nó thường cho phép đẩy 1 bootloader mới vào RAM, giúp việc nạp bootloader có thể thực hiện tại được
     + 1 số tool của các vendor: STM32 cube, SAM-BA, Snagboot `https://github.com/bootlin/snagboot`,...
 - Booting sequence 
-    + ![alt text](image-22.png)
+    + ![alt text](images/image-22.png)
 
 ## 3. Bootloaders - giới thiệu 1 số bootloader phổ biến
 - GRUB - Grand Unified Bootloader:
@@ -235,13 +235,13 @@
     + Phân vùng phần cứng giữa secure world và normal world: 1 vài tài nguyên phần cứng chỉ khả dụng trong secure world, bởi trusted OS
     + cho phép chạy app/service tách biệt khỏi linux và có thể cung cấp các service cho Linux app
     + OP-TEE là OS mã nguồn mở bảo mật - secure OS
-- Sơ đồ tổng quát trusted firmware: ![alt text](image-2.png)
+- Sơ đồ tổng quát trusted firmware: ![alt text](images/image-2.png)
 ## 5. Example boot sequence on ARM
-![alt text](image-3.png)
-![alt text](image-4.png)
-![alt text](image-5.png)
-![alt text](image-6.png)
-![alt text](image-7.png)
+![alt text](images/image-3.png)
+![alt text](images/image-4.png)
+![alt text](images/image-5.png)
+![alt text](images/image-6.png)
+![alt text](images/image-7.png)
 
 ## 6. The U-boot bootloader
 - U-boot cấu hình hệ thống dựa vào kconfig từ Linux kernel
@@ -407,7 +407,7 @@
 
 # Linux kernel introduction
 ## 1. Linux kernel in the system
-![alt text](image-8.png)
+![alt text](images/image-8.png)
 - Linux kernel đóng vai trò cầu nối giữa tầng app và phần cứng
 ## 2. Linux kernel main roles
 - Linux kernel quản lý tất cả phần cứng (CPU, memory, I/O)
@@ -528,7 +528,7 @@
     + mrproper: xóa hết
     + distclean: xóa nhiều hơn mrproper
 - Kernel building overview
-    + ![Kernel building overview](image-9.png)
+    + ![Kernel building overview](images/image-9.png)
 ## 8. Booting the kernel
 - Nhiều hệ thống nhúng có nhiều phần cứng non-discoverable (serial ethernet, I2C, USB controller, ...)
 - Những phần cứng này cần được khai báo và pass vào Linux kernel, nếu không thì hardware đó coi như vô hình
@@ -747,14 +747,14 @@ Example: arm-linux-
 
 # Accessing hardware devices
 ## Kernel drivers
-![alt text](image-10.png)
+![alt text](images/image-10.png)
 - Cách mà ứng dụng tương tác với phần cứng 
     + Application: truy cập device thông qua kernel/user-space interface hoặc qua C/C++ library
     + Driver subsystem: cung cấp các tính năng nhóm thiết bị ra ngoài thông qua kernel/user-space interface tiêu chuẩn
     + Device driver: trình điều khiển, quản lý thiết bị cụ thể trong kernel
     + Bus subsystem: cung cấp API cho driver để truy cập vào bus cụ thể: i2c, spi, ...
     + Bus controller driver: trình điều khiển bus
-![Minh họa với GPIO](image-11.png)
+![Minh họa với GPIO](images/image-11.png)
 - Standardized user-space interface:    
     + Kernel drivers cung cấp interface chuẩn cho user-space
     + tất cả device ở cùng class (ví dụ: cùng GPIO controller) đều thể hiện chung 1 tiêu chuẩn cho user-space
@@ -905,7 +905,7 @@ Example: arm-linux-
 - Device tree source nằm ở đâu?
     + `arch/<ARCH>/boot/dts/<vendor>` trong source code Linux
     + các device tree source này được copy vào các dự án như U-boot, barebox, ... nên có thể lấy được từ đó luôn
-- Device tree base syntax: ![alt text](image-12.png)
+- Device tree base syntax: ![alt text](images/image-12.png)
 - Device tree inheriance:
     + device tree có thể chia thành nhiều file và có thể include nhau, có tính kế thừa
     + file được include có đuôi là `.dtsi`, thông thường `.dtsi` chứa thông tin về Soc, định nghĩa phần cứng chung cho nhiều board
@@ -1021,7 +1021,7 @@ Example: arm-linux-
 + F2FS 
 + SquashFS
 + EROFS
-+ Benchmarks của các loại filesystem trên: ![alt text](image-13.png)
++ Benchmarks của các loại filesystem trên: ![alt text](images/image-13.png)
 - Compatibility filesystems - khả năng tương thích với các filesystem của các OS khác
     + Linux hỗ trợ nhiều format filesystem khác:
         - vfat - CONFIG_VFAT_FS: phù hợp để chứa bootloader binary. Filesystem này không hỗ trợ permission, ownership, ... và không thể dùng cho Linux rootfs
@@ -1079,7 +1079,7 @@ Example: arm-linux-
         - mount /dev/<device> /mnt (ở target)
 - Mixing read-only and read-write filesystems
     + Việc kết hợp filesystem chỉ đọc và đọc-ghi là tốt. Trong block storage sẽ gồm
-        - ![alt text](image-14.png)
+        - ![alt text](images/image-14.png)
         - 1 phân vùng chi đọc (squashfs), dùng cho root filesystem (binaries, kernels, ...), tiết kiệm bộ nhớ, bảo vệ hệ thống khỏi lỗi
         - 1 phân vùng read-write với journaled filesystem (nhật ký - như ext4), dùng để chứa user data hoặc config data, giúp hệ thống phục hồi được dữ liệu sau khi sập nguồn, reboot do crash
         - tmpfs: bộ nhớ ram cho file tạm
@@ -1110,7 +1110,7 @@ Example: arm-linux-
     - yêu cầu phải có wear leveling để kiểm soát số lần xóa trên khối
     - yêu cầu cơ thế phát hiện và xử lý khối lỗi - bad block detection/handling
 ## 3. The MTD subsystem
-+ ![alt text](image-15.png)
++ ![alt text](images/image-15.png)
 + Memory Technology Devices
 + chịu trách nhiệm xử lý tất cả loại bộ nhớ mà không thuộc về block subsystem
 + hỗ trợ: RAM, ROM, NOR flash, NAND flash ,... 
@@ -1148,7 +1148,7 @@ Example: arm-linux-
     + ngày nay UBI/UBIFS là tiêu chuẩn cho các bộ nhớ NAND vừa và lớn
 ## 8. UBI
 + Unsorted block images - tầng quản lý trung gian dành cho bộ nhớ flash
-    - ![alt text](image-16.png)
+    - ![alt text](images/image-16.png)
     - Cách thiết kế:
         + tách biệt wear leveling layer và filesystem layer
         + thêm tính linh hoạt
@@ -1157,7 +1157,7 @@ Example: arm-linux-
         + chiếm dụng đáng kể bộ nhớ, đặc biệt khi dùng với thiết bị nhỏ hoặc phân vùng nhỏ.
         + JFFS2 vẫn là lựa chọn hợp lý trên các MTD partition nhỏ
     - CHo phép wear leveling hoạt động trên toàn bộ phân vùng bộ nhớ
-+ ![alt text](image-17.png)
++ ![alt text](images/image-17.png)
     - Khi có quá nhiều hoạt động trên 1 LEB, UBI có thể quyết định di chuyển nó tới 1 PEB khác với số lần xóa đang ít
     - Ngay cả các partition read-only cũng tham gia vào quá trình wear leveling
 + Good practice
@@ -1167,7 +1167,7 @@ Example: arm-linux-
     - U-boot hiện tại hỗ trợ chứa cấu hình môi trường vào phân vùng UBI
     - Nếu cần nhiều MTD partition hơn, hãy gom chúng lại vào phần đầu của flash device
 + So sánh bad và goot practice
-    - ![alt text](image-18.png)
+    - ![alt text](images/image-18.png)
     - Bad practice là khi để các phân vùng MTD tách xa nhau, không gom lại đầu của flash device
 ## 9. UBIFS - Unsorted Block Images file system
 + Là filesystem nhật ký mang lại hiệu suất tốt hơn so với bản tiền nhiệm (JFFS2) và giải quyết được khả năng mở rộng
@@ -1175,7 +1175,7 @@ Example: arm-linux-
 + tạo image bằng cách `mkfs.ubifs` từ mtd-utils
 + image này sau đó có thể flash vào vùng nhớ hoặc gộp vào UBI image khác (ubinize command)
 - ubinize for UBI image creation
-    + ![alt text](image-19.png)
+    + ![alt text](images/image-19.png)
     + image UBIFS có thể được gộp cùng với zImage và .dtb thành 1 image để flash vào board
 ## 10. Linux: Block emulation layer - lớp giả lập block
 + Squashfs hay EROFS đòi hỏi phải chạy trên 1 block device, nhưng bộ nhớ flash ở các board mạch thường được quản lý dưới dạng MTD device. Vì vậy lớp giả lập đóng vai trò như bộ chuyển đổi, biến các phân vùng MTD/UBI thành các emulation block để OS có thể đọc được các read-only filesystem
@@ -1292,9 +1292,9 @@ Example: arm-linux-
         - `jose.hash`: chứa commit hash
         - `*.patch`: áp dụng file này như bản vá
 - Buildroot: adding a new package, Config.in
-    + ![alt text](image-20.png)
+    + ![alt text](images/image-20.png)
 - Buildroot: adding new package, .mk file
-    + ![alt text](image-21.png)
+    + ![alt text](images/image-21.png)
     + đường dẫn của pkg và prefix của các biến phải khớp với hậu tố (suffix) của BR2_PACKAGE_JOSE trong cấu hình Builtroot
     + meson-package biết cách làm thế nào để build Meson package
 ## 4. Yocto Project / OpenEmbedded
@@ -1420,7 +1420,7 @@ Example: arm-linux-
         - journalctl -u: logs from a particular service
     + ...
 ## Linux graphics stack overview
-![alt text](image-23.png)
+![alt text](images/image-23.png)
 ## Display controller support - trình điều khiển đồ họa
 - Linux dùng các công nghệ dưới đây để xuất hình ảnh ra màn hình, chúng nằm ở tầng sát phần cứng, chúng nói chuyện với phần cứng
 - fbdev
@@ -1473,7 +1473,7 @@ Example: arm-linux-
     + 1 số khác hoạt động trực tiếp ngay trên tầng DRM + input
 - Widget-oriented toolkits: công cụ tạo button, window, ...
 - Game-oriented toolkits
-- ![alt text](image-24.png)
+- ![alt text](images/image-24.png)
 - Các toolkits phổ biến:
     + Qt
         - thuộc toolkits graphics
@@ -1493,7 +1493,7 @@ Example: arm-linux-
     + LVGL
         - nhẹ, hướng tới micro-controller
 ## Linux multimedia stack overview
-- ![alt text](image-25.png)
+- ![alt text](images/image-25.png)
 - các hệ thống xử lý multimedia trong Linux
     + Audio stack - hệ thống xử lý âm thanh
         - kernel side: gồm có ALSA subsystem: chứa driver cho audio interface và audio codec, thể hiện qua `/dev/snd/`, dùng thư viện `alsa-lib`
@@ -1512,7 +1512,7 @@ Example: arm-linux-
         - cho phép tạo pipeline để chuyển đổi, conver, hiển thị cho audio và video
         - được cấu thành từ số lượng lớn plugins
 ## Linux network stack
-- ![alt text](image-26.png)
+- ![alt text](images/image-26.png)
 ## Thực hành
 - /lib/systemd: chứa các file cấu hình cho các target và service ở tầng userspace
 - /lib/udev/rules.d: các quy tắc chuẩn dành cho udev
@@ -1589,7 +1589,7 @@ Example: arm-linux-
             + `ARCH-linux-gbd` được dùng để chạy ở máy host
             + `gbdserver`: chạy ở targer (chỉ khoảng 400KB ở arm)
         - Remote debugging architecture:
-            + ![alt text](image-27.png)
+            + ![alt text](images/image-27.png)
         - target setup: có 3 cách sau
             + chạy 1 program bằng lệnh `gdbserver`, chương trình không chạy ngay mà chờ lệnh từ host
                 - `gdbserver /dev/ttyS0 <executable> <args>`
@@ -1632,21 +1632,21 @@ Example: arm-linux-
             + nén file output
             + lưu thêm thông tin từ /proc
         - ví dụ về file cấu hình:
-            + ![alt text](image-28.png)
+            + ![alt text](images/image-28.png)
         - ví dụ về recept: file cấu hình cho từng app
-            + ![alt text](image-29.png)
+            + ![alt text](images/image-29.png)
     + libminicoredumper - thư viện để nhúng vào app 
         - chiếm ít bộ nhớ
         - không ảnh hưởng runtime
         - API đơn giản
-        - ![alt text](image-30.png)
-        - ![alt text](image-31.png)
-        - ![alt text](image-32.png)
-        - ![alt text](image-33.png)
+        - ![alt text](images/image-30.png)
+        - ![alt text](images/image-31.png)
+        - ![alt text](images/image-32.png)
+        - ![alt text](images/image-33.png)
     + live dump
         - dùng để quan sát các running process khác khi 1 process bị crash
-        - ![alt text](image-34.png)
-        - ![alt text](image-35.png)
+        - ![alt text](images/image-34.png)
+        - ![alt text](images/image-35.png)
 - Tracing and profiling
     + strace - system call tracer
         - tích hợp vào hệ thống bằng cách build cross với các build system
@@ -1686,7 +1686,7 @@ Example: arm-linux-
         - có sẵn trong linux kernel
         - hỗ trợ các sự kiện: hardware event, software event
         - perf examples:
-            + ![alt text](image-36.png)
+            + ![alt text](images/image-36.png)
     + gprof
         - là công cụ đo application-level
         - là 1 phần của binutils

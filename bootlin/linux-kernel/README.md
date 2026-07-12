@@ -2,7 +2,7 @@
 
 # Linux Kernel Introduction
 ## Linux kernel in the system
-- ![alt text](image.png)
+- ![alt text](images/image.png)
 - Linux kernel nằm có vai trò cầu nối giữa user-space và hardware
 - Chức năng chính:
     + quản lý tất cả phần cứng
@@ -55,7 +55,7 @@
     + make modules hoặc make -j4 (nếu build cùng kernel)
     + make INSTALL_MOD_PATH=<dir>/ modules_install
 - tổng quan việc compile và install kernel
-    + ![alt text](image-1.png)
+    + ![alt text](images/image-1.png)
 ## Booting the kernel
 - Hardware description
     + nhiều hệ thống embedded có nhiều non-discoverable hardware
@@ -139,7 +139,7 @@ MODULE_AUTHOR("William Shakespeare");
         - `EXPORT_SYSBOL(name)`: export tới tất cả modules
         - `EXPORT_SYMBOL_GPL(name)`: export tới những module có GPL licenses
     + 1 driver thông thường không nên dùng các function chưa được export
-    + ![alt text](image-2.png)
+    + ![alt text](images/image-2.png)
 - Module license
     + Được dùng để giới hạn kernel function mà module có thể dùng nếu module không phải là license GPL
     + Nếu nạp 1 kernel mã nguồn đóng, Linux kernel sẽ đánh dấu là tainted (bị bẩn)
@@ -276,14 +276,14 @@ MODULE_AUTHOR("William Shakespeare");
     + `arch/<ARCH>/boot/dts/<vendor>`
     + trong U-boot, TF-A cũng có sẵn folder chứa device tree được copy từ Linux kernel source
 - Device tree base syntax
-    + ![alt text](image-3.png)
+    + ![alt text](images/image-3.png)
 - DT overall structure: simplified example
-    + ![alt text](image-4.png)
-    + ![alt text](image-5.png)
-    + ![alt text](image-6.png)
-    + ![alt text](image-7.png)
-    + ![alt text](image-8.png)
-    + ![alt text](image-9.png)
+    + ![alt text](images/image-4.png)
+    + ![alt text](images/image-5.png)
+    + ![alt text](images/image-6.png)
+    + ![alt text](images/image-7.png)
+    + ![alt text](images/image-8.png)
+    + ![alt text](images/image-9.png)
 - Device tree inheritance
     + device tree có thể được chia thành nhiều file
     + `.dtsi`: là file dùng để include vào file khác
@@ -292,7 +292,7 @@ MODULE_AUTHOR("William Shakespeare");
     + `.dts`: là file device tree cuối cùng
     + việc ghi đè (overlay) device tree được tuân theo thứ tự include, cho phép file sau ghi đè giá trị của file trước
 - DT inheritance in Bone Black support
-    + ![alt text](image-10.png)
+    + ![alt text](images/image-10.png)
 - Device tree design principles
     + device tree mô tả phần cứng chứ không phải cách cấu hình phần cứng
     + device tree đọc lập với OS, khi OS thay đổi thì device tree không cần đổi
@@ -396,7 +396,7 @@ MODULE_AUTHOR("William Shakespeare");
 - Resource: interrupts, clocks, DMA, reset lines, ...
     + device tree mô tả bộ điều khiển như 1 node
     + node đó sẽ được dùng trong các node khác
-    + ![alt text](image-11.png)
+    + ![alt text](images/image-11.png)
         - khi 1 node dùng node khác, cấu hình trong dấu `<>` phải tuân theo cell của node khác
         - ví dụ node khác yêu cầu cell là 3 thì trong `<>` cần có 3 tham số
 - generic suffixes - các hậu tố chung
@@ -434,13 +434,13 @@ MODULE_AUTHOR("William Shakespeare");
         - `make DT_SCHEMA_FILES=Documentation/devicetree/bindings/trivial-devices.yaml dtbs_check`
 - Binding syntax: base structure
     + Mỗi file YAML định nghĩa 1 cấp độ phân cấp device tree, tối đa là 2 cấp khi có node con
-        - ![alt text](image-12.png)
+        - ![alt text](images/image-12.png)
         - `%YAML`: định nghĩa language version
         - `$id`: có thể không phải là URL thực, nhưng là mã định danh duy nhất
         - `$schema`: tham chiếu tới meta-schema mà file này cần được xác thực
         - `property`: nơi bắt đầu định nghĩa, tất cả thuộc tính cần được liệt kê, tên biến viết thường, theo sau là dấu `:`, có 1 dòng trống giữa các property
 - Binding syntax: types
-    + ![alt text](image-13.png)
+    + ![alt text](images/image-13.png)
     + các property cần phải xác định kiểu dữ liệu thông qua `type:` hoặc `ref:`
         - thuộc tính boolean không yêu cầu giá trị
         - giá trị số có thể có dấu hoặc không dấu, và luôn là số 32bit
@@ -451,7 +451,7 @@ MODULE_AUTHOR("William Shakespeare");
         - type không cần phải lặp lại
     + `dt-schema` sẽ áp dụng 1 kiểu dữ liệu bựa vào hậu tố, ví dụ -hz, -ohms, -us
 - Binding syntax: child nodes
-    + ![alt text](image-14.png)
+    + ![alt text](images/image-14.png)
     + child node đơn giản là 1 property
     + type phải set là `type: object`
     + Nếu node con có tên cố định thì khai báo node con trong 1 node child-node
@@ -462,12 +462,12 @@ MODULE_AUTHOR("William Shakespeare");
         - tăng ràng buộc để giảm thiểu rủi ro
         - mỗi ràng buộc nằm ở 1 dòng
 - Binding syntax: numerical constrains
-    + ![alt text](image-15.png)
+    + ![alt text](images/image-15.png)
     + giới hạn bằng việc đặt minimum/maximum của giá trị
     + đặt giá trị default cho property
     + đặt minItems/maxItems cho mảng
 - Binding syntax: lists and dictionaries
-    + ![alt text](image-16.png)
+    + ![alt text](images/image-16.png)
     + biểu diễn các giá trị có thể xảy ra, giới hạn giá trị mà property có thể nhận
         - bắt buộc giá trị duy nhất: `const`
         - lấy giá trị từ list: `enum`
@@ -477,7 +477,7 @@ MODULE_AUTHOR("William Shakespeare");
         - `anyOf`: biểu thị OR
         - `allOf`: biển thị AND
 - Bindings syntax: referencing other bindings
-    + ![alt text](image-17.png)
+    + ![alt text](images/image-17.png)
     + có thể viết constrains common rồi refer tới nó
     + file common 
         ```
@@ -507,7 +507,7 @@ MODULE_AUTHOR("William Shakespeare");
             maximum: 150          # Ví dụ xe máy thông thường tối đa 150cc
         ```
 - Bindings syntax: altering on presence of properties
-    + ![alt text](image-18.png)
+    + ![alt text](images/image-18.png)
     + đôi khi ta cần các mô tả linh hoạt hơn
         - phụ thuộc giữa các property
             + 1 property có thể cần có property khác
@@ -516,7 +516,7 @@ MODULE_AUTHOR("William Shakespeare");
             + biểu diễn bằng if/else dưới `allOf`
             + điển hình là mỗi compatible đi kèm với constrain khác nhau
 - Bindings syntax: enforcing correct properties only
-    + ![alt text](image-19.png)
+    + ![alt text](images/image-19.png)
     + các file YAML liệt kê các property và thêm constrai cho chúng
         - việc thêm các thuộc tính chưa định nghĩa có thể xảy ra
         - việc quên thuộc tính bắt buộc có thể xảy ra
@@ -525,7 +525,7 @@ MODULE_AUTHOR("William Shakespeare");
         - `additionalProperties: false`: ngăn thuộc tính chưa được define trong file này xuất hiện
         - `unevaluatedProperties`: ngăn thuộc tính chưa được define trong file này xuất hiện hoặc không được refer đến thông qua `allOf`
 - Bindings syntax: validating your own bindings
-    + ![alt text](image-20.png)
+    + ![alt text](images/image-20.png)
     + để test YAML thì thêm `examples` ở cuối file
 ## Thực hành
 - khi thêm file dts thì cần thêm vào Makefile
@@ -552,15 +552,15 @@ MODULE_AUTHOR("William Shakespeare");
     + 1 pin muxing consumer interface cho device drivers
 - Phần lớn các pinctrl driver cung cấp 1 device tree binding và pin mux phải được mô tả trong device tree: `Documentation/devicetree/bindings/pinctrl`
 - pinctrl subsystem diagram
-    + ![alt text](image-21.png)
+    + ![alt text](images/image-21.png)
 - Device Tree properties for consumer devices
     + device cần pin để mux thì dùng thuộc tính `pinctrl-<x>` và `pinctrl-names` trong device tree
         - `pinctrl-<x>`: link tới 1 cấu hình pin cụ thể ứng với state nhất định. `x` được đánh số theo thứ tự trái qua phải nếu `pinctrl-names` có nhiều tên
         - `pinctrl-names`: gán tên gọi cho mỗi trạng thái. Nếu để `default` thì pin mux được thiết lập bởi device driver
         - check `Documentation/devicetree/bindings/pinctrl/pinctrl-bindings.txt` để có thêm chi tiết
 - Device Tree properties for consumer devices - Examples
-    + ![alt text](image-22.png)
-    + ![alt text](image-23.png)
+    + ![alt text](images/image-22.png)
+    + ![alt text](images/image-23.png)
         - `pinctrl-names` có 2 tên thì `pinctrl-<x>` cũng có 2 cái tương ứng cho từng name
 - Defining pinctrl configurations
     + các cấu hình pinctrl khác nhau cần được định nghĩa như node con trong pinctrl device
@@ -569,7 +569,7 @@ MODULE_AUTHOR("William Shakespeare");
         - `.dts`: dùng cho board cụ thể
     + `pinctrl-<x>` của device trỏ tới cấu hình pin mà nó cần thông qua 1 device tree phandle
     + Ví dụ
-        - ![alt text](image-24.png)
+        - ![alt text](images/image-24.png)
             + trong AM33xx, driver `pinctrl-single` được sử dụng để cấu hình pin trong DT.
             + trong mỗi cấu hình pin, giá trị của `pinctrl-single,pins` cần đưa ra list của thanh ghi, value
         - để biết giá trị cấu hình chính xác, cần xem datasheet của board và SoC
@@ -581,3 +581,123 @@ MODULE_AUTHOR("William Shakespeare");
     + hiện số: device chưa có driver
 - trong bảng P8, P9, cột Pin ở gần cuối, ký hiệu đó được dùng để kiểm tra pin assignment
 - FIle check enum tương ứng với các mode, pin name, ...: `/home/as/Desktop/linuxEmbeddedBBB/BBB_docs/hw-docs/am33xx.h`
+
+# Linux device and driver model
+## Introduction
+- The need for a device model
+    + Linux kernel chay trên nhiều kiến trúc phần cứng, vì vậy cần tối ưu việc tái sử dụng code giữa các nền tảng
+    + Ví dụ, ta muốn 1 USB device driver có thể dùng đươc ở x86, arm, ...
+    + Điều này yêu cầu code được tổ chức rõ ràng, với device driver tách biệt khỏi controller driver, mô tả phần cứng tách biệt khỏi driver của chúng, ...
+    + Đây là điều mà linux kernel device model cho phép.
+- Kernel and device drivers
+    + trong Linux, 1 driver luôn giao tiếp với
+        - 1 framework mà cho phép driver đó expose tính năng phần cứng theo cách chung nhất
+        - 1 kiến trúc bus để giao tiếp, phát hiện phần cứng
+- Device model data structures
+    + device model được tổ chức quanh 3 struct chính
+        - `struct bus_type`: thể hiện loại bus (SPI, I2C, USB, ...)
+        - `struct device_driver`: thể hiện 1 driver có khả năng điều khiển các device cụ thể trong 1 bus cụ thể
+        - `struct device`: thể hiện 1 device kết nối tới 1 bus
+    + kernel dùng tính chất kế thừa để tạo nhiều phiên bản khác nhau của `struct device_driver` và `struct device` cho mỗi bus subsystem
+- Bus drivers
+    + Component đầu tiên của device model là bus driver
+        - mỗi bus driver đại diện cho 1 loại bus: USB, SPI, I2C, ...
+    + Bus driver chịu trách nhiệm
+        - đăng ký loại bus (`struct bus_type`)
+        - cho phép đăng ký adapter driver (USB controller, I2C adapter, ...) tương thích để phát hiện được device đã kết nối và cung cấp cơ chế giao tiếp với các device
+        - cho phép đăng kí device drivers (USB drivers, I2C devices, ...)
+        - matching device driver với device bằng adapter driver
+        - cung cấp API để implement adapter drivers và device driver
+        - định nghĩa driver và struct của device thông qua `struct usb_driver` và `struct usb_interface`
+- sysfs
+    + bus, device, driver, ... là các struct nội bộ của kernel
+    + sysfs virtual filesystem cung cấp cơ chế để export nhiều thông tin tới user space 
+    + thường được mount vào `/sysfs`
+        - `/sys/bus`: chứa danh sách các loại bus
+        - `/sys/devices`: chứa danh sách các device
+        - `/sys/class`: liệt kê các thiết bị theo framework mà chúng được kết nối vào
+## Example of the USB bus
+- Kiến trúc USB bus driver nằm ở 
+    - chứa code cho kiến trúc bus USB
+    - `drivers/usb/core`
+    - `struct bus_type` được định nghĩa trong `drivers/usb/core/driver.c` và đăng ký trong `driver/usb/core/usb.c`
+- Adapter drives
+    - chứa các driver điều khiển phần cứng gắn vào bus USB
+    - `drivers/usb/core`
+- Device drivers
+    - đặt nhiều nơi trong kernel source 
+- Quan sát ví dụ về `drivers/net/usb/rtl8150.c`
+- Device identifiers
+    + Việc định nghĩa danh sách device mà driver này có thể quản lý, giúp cho USB core biết được với device nào thì driver nào nên được dùng
+    + macro `MODULE_DEVICE_TABLE()` cho phép `depmod` (run bởi `make_modules_install`) trích xuất mối quan hệ giữa device identifiers và drivers, vì vậy driver có thể được load tự động bởi `udev`
+- Instantiation of usb_driver
+    + `struct usb_driver` là struct được định nghĩa bởi USB core. Mỗi USB device driver phải khởi tạo nó, và đăng kí nó với USB core sử dụng struct này
+    + struct này kế thừa từ `struct device_driver`, cái mà được định nghĩa bởi device model
+- Driver registration and unregistration 
+    + khi driver được load/unload, nó phải được đăng ký/ hủy đăng ký nó khởi USB core
+    + dùng `usb_register()`, `usb_deregister()` trong USB core `drivers/net/usb/rtl8150.c`
+    + với code driver của drivers/net/usb/rtl8150.c, chỉ cần gọi `module_usb_driver()` là hàm init với exit được gọi
+- Tại thời điểm khởi tạo, USB adapter driver liên quan tới USB controller đăng ký chính nó tới USB core
+- `rtl8150` usb device driver đăng ký nó tới USB core
+    + ![alt text](images/image-25.png)
+    + USB core bây giờ biết sự kết hợp giữa vendor/productID của `rtl8150` và `struct usb_driver` của driver này
+- Khi 1 device được phát hiện
+    + USB core sẽ tìm kiếm IDs đã đăng ký và tìm driver tương ứng
+    + sau đó USB core gọi hàm probe() để đăng ký driver `rtl8150`
+- Probe method
+    + được phát đi cho mỗi device kết nối với 1 driver
+    + hàm `probe()` nhận tham số là 1 struct mô tả device, thường cụ thể bởi bus infrastructure (`struct pci_dev, struct usb_interface`, ...)
+    + function này chịu trách nhiêm cho
+        - khởi tạo device, mapping I/O memory, đăng ký interrupt. Bus infrasstructure cung cấp phương thức để lấy địa chỉ, số ngắt và thông tin khác của device
+        - đăng ký device tới chính xác kernel framework (example: network infrastructure)
+- Mô hình thiết bị của Linux mang tính đệ quy
+    + bus này có thể kết nối và quản lý các bus khác, tạo thành cấu trúc phân tầng phức tạp 
+    + ![alt text](images/image-26.png)
+
+## Platform drivers
+- trong số các device non-discoverable, có nhiều họ device là 1 phần trong SoC: UART controller, Ethernet controller, SPI hoặc I2C controller, graphic, ...
+- Trong linux kernel, 1 bus cụ thể được gọi là `platform bus`, được tạo ra để handle những device này. Chúng được control qua `memory-mapped registers`, vì các device này không thể tự phát hiện được
+- Platform bus hỗ trợ platform drivers mà handle platform devices
+    + là trung gian kết nối platform driver và platform device
+    + làm việc như các bus khác, ngoại trừ các device được liệt kê 1 cách cố định thay vì được phát hiện
+- Implement of a platform driver
+    + driver này cần implement 1 `struct platform_driver`
+        - ![alt text](images/image-27.png)
+    + và sau đó đăng ký struct đó trong hàm init, exit
+        - ![alt text](images/image-28.png)
+    + phần lớn các driver dùng hàm `module_platform_driver()` khi không cần làm gì đặc biệt trong hàm init và exit
+        - ![alt text](images/image-29.png)
+- Platform device instantiation
+    + vì platform devices không thể được phát hiện tự động, chúng được định nghĩa cố định
+        - cách cũ: khởi tạo trực tiếp từ `struct platform_device`
+        - cách mới: mô tả qua device tree, từ đó các `struct platform_device` sẽ được tạo
+- Using additional hardware resources - cách mà kernel sử dụng tài nguyên phần cứng bổ sung
+    + Device tree thường chứa nhiều thông tin. Nó chứa các con trỏ trỏ tới các khối phần cứng không thể discoverable được   
+    + Cách mà driver lấy thông tin phần cứng
+        - Địa chỉ các thanh ghi I/O (để ghi/đọc dữ liệu phần cứng) và các đường tín hiệu ngắt (IRQ) được tự động chuyển đổi thành một mảng các `struct resource` gắn liền với `struct platform_device` đó. Driver chỉ cần gọi hàm chuẩn để lấy chúng ra.
+        - Thông tin liên qua tới subsystem nào sẽ được phân tích bởi subsystem đó
+        - Các thuộc tính được lấy trực tiếp bởi device driver, thông qua các hàm lookup của device tree
+    + tất cả cách này cho phép cùng 1 driver được sử dụng với nhiều devices có chức năng tương đương, nhưng khác address
+- Using resources
+    + platform driver truy cập vào các tài nguyên được cung cấp bởi platform bus cũng như các thành phần khác do subsysmtem cung cấp thông qua API: `clk_get()`, `gpio_request()`, `dma_request_channel()`
+        ```c
+        res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+        sport->rxirq = platform_get_irq(pdev, 0);
+        ```
+- Driver data
+    + Ngoài thông tin và tài nguyên của device, driver có thể cần thêm các thông tin cụ thể khác của device để thay đổi hành vi khi driver điều khiển nhiều device cùng lúc
+    + 1 con trỏ `const void *data` dùng để chứa thông tin đặc biệt này
+        ```c
+        static const struct of_device_id marvell_nfc_of_ids[] = {
+            {
+                .compatible = "marvell,armada-8k-nand-controller",
+                .data = &marvell_armada_8k_nfc_caps,
+            },
+        };
+        ```
+    + Data này có thể lấy được trong hàm `probe` bằng cách
+        ```c
+            nfc->caps = of_device_get_match_data(&pdev->dev);
+        ```
+
+## Introduction to the I2C subsystem
