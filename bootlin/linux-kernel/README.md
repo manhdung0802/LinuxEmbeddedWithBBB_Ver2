@@ -700,74 +700,94 @@ MODULE_AUTHOR("William Shakespeare");
             nfc->caps = of_device_get_match_data(&pdev->dev);
         ```
 
-## Introduction to the I2C subsystem
-- What is I2C?
-    + Là bus tốc độ thấp sử dụng phổ biến để kết nối device onboard và ngoại vi tới vi xử lý
-    + Sử dụng 2 dây: SDA cho data và SCL cho clock
-    + I2C là 1 master/slave bus: chỉ master có thể khởi tạo việc truyền dữ liệu, và các slave chỉ có thể reply tới việc truyển dữ liệu của master
-    + Ở linux system, I2C controller trong vi xử lý là master, điều khiển bus
-    + Mỗi slave device được xác định bởi 1 I2C address (không thể có 2 device có cùng address trên cùng 1 bus). Mỗi giao tiếp được khởi tạo bởi master chứa địa chỉ này, cho phép các slave liên quan nhận biết rằng nó có nên rep lại giao tiếp này không
-- An I2C bus example
-    + ![alt text](images/image-30.png)
-- The I2C bus driver
-    + Như các bus subsystem khác, I2C bus driver chịu trách nhiệm
-        - cung cấp API để implement I2C controller drivers
-        - cung cấp API để implement I2C device driver trong kernel space
-        - cung cấp API để implement I2C device driver trong user space
-    + Code của I2C bus driver nằm ở `drivers/i2c/`
-    + Code của I2C controller driver nằm ở `driver/i2c/busses/`
-    + Code của I2C device driver nằm rải rác trong `drivers/`, phụ thuộc vào framework được dùng để expose devices
-- Registering an I2C device driver
-    + Như các bus subsystem khác, I2C subsystem định nghĩa `struct i2c_driver` kế thừa từ `struct device_driver` và cần phải khởi tạo và đăng ký bởi mỗi I2C device driver
-        - thông thường, struct này trỏ tới hàm probe() và remove()
-        - nó cũng chứa `id_table`, dùng cho việc phát hiện I2C devices mà không dựa vào device tree
-    + `i2c_add_driver()` và `i2c_del_driver()` được dùng để register/inregister driver
-    + nếu driver không làm gì trong init()/exit() thì có thể dùng `module_i2c_driver()` thay thế
-- Registering an I2C device driver: example
-    + ![alt text](images/image-31.png)
-- Registering an I2C device: non-DT
-    + Ở platform không dùng device tree, `struct i2c_board_info` cho phép mô tả cách mà I2C device kết nối tới board
-    + Các struct này được định nghĩa với macro `I2C_BOARD_INFO()`, có param là device name và địa chỉ của slave device
-    + mảng các struct này được đăng ký vào cho mỗi bus bằng việc dùng `i2c_register_board_info()`
-- Registering an I2C device, non-DT example
-    + ![alt text](images/image-32.png)
-- Registering an I2C device, in the DT
-    + trong device tree, I2C controller device được định nghĩa ở file .dtsi, và thường status = "disabled"
-    + tại device tree của board:
-        - I2C controller device được enabled
-        - tần số bus I2C được khai báo, dùng `clock-frequency`
-        - I2C device được mô tả là node con trong I2C controller bus, nơi mà `reg` được đăng ký là địa chỉ của slave trên bus
-    + example
-        - khai báo I2C controller
-            + ![alt text](images/image-34.png)
-            + mô tả các thông tin cần thiết cho bus I2C
-        - khai báo I2C device
-            + ![alt text](images/image-35.png)
-            + mô tả các thông tin của device gắn vào bus I2C
-- probe() and remove()
-    + probe() có nhiệm vụ khởi tạo device và đăng ký nó vào kernel phù hợp, nó nhận các tham số
-        - `struct i2c_client` pointer, cái mà đại diện cho chính I2C device, kế thừa từ `struct device`
-        - với Linux kernel < 6.4, probe() có tham số thứ 2 không được sử dụng
-        - ![alt text](images/image-36.png)
-    + remove() có nhiệm vụ hủy đăng ký device khroi kernel và shut it down
-        - ![alt text](images/image-37.png)
-- Communicating with the I2C device: raw API
-    + Gửi 1 `buf` tới I2C device
-        - `int i2c_master_send(const struct i2c_client *client, const char *buf, int count);`
-    + Nhận 1 `count` bytes từ I2C device và lưu vào `buf`
-        - `int i2c_master_recv(const struct i2c_client *client, char *buf, int count);`
-    + cả 2 function trên trả về số âm báo lỗi, hoặc là số byte truyền được
-- Communicating with the I2C device: message transfer
-    + API gửi message cho phép mô tả thông tin truyền đi bao gồm vài messages, với mỗi message được tryền đi theo 1 hướng
-        - `int i2c_transfer(struct i2c_adapter *adap, struct i2c_msg *msgs, int num);`
-            + `struct i2c_adapter` pointer được lấy thông qua `client->adapter`
-            + `struct i2c_msg` định nghĩa length, location và direction của message
-- I2C: message transfer example
-    + ![alt text](images/image-38.png)
-- I2C functionality
-    + không phải tất cả I2C đều hỗ trợ tất cả tính năng 
-    + I2C controller driver bảo với I2C core rằng chức năng nào chúng hỗ trợ
-    + 1 I2C device driver phải kiểm tra chức năng nào chúng được cấp vởi I2C controller
-    + `i2c_check_functionality()` dùng để check việc này
-    + `include/uapi/linux/i2c.h` chứa define các chức năng tồn tại trong I2C
-    + Tài liệu Linux support for I2C: https://www.kernel.org/doc/html/latest/i2c/
+# Introduction to the I2C subsystem
+## What is I2C?
++ Là bus tốc độ thấp sử dụng phổ biến để kết nối device onboard và ngoại vi tới vi xử lý
++ Sử dụng 2 dây: SDA cho data và SCL cho clock
++ I2C là 1 master/slave bus: chỉ master có thể khởi tạo việc truyền dữ liệu, và các slave chỉ có thể reply tới việc truyển dữ liệu của master
++ Ở linux system, I2C controller trong vi xử lý là master, điều khiển bus
++ Mỗi slave device được xác định bởi 1 I2C address (không thể có 2 device có cùng address trên cùng 1 bus). Mỗi giao tiếp được khởi tạo bởi master chứa địa chỉ này, cho phép các slave liên quan nhận biết rằng nó có nên rep lại giao tiếp này không
+## An I2C bus example
++ ![alt text](images/image-30.png)
+## The I2C bus driver
++ Như các bus subsystem khác, I2C bus driver chịu trách nhiệm
+    - cung cấp API để implement I2C controller drivers
+    - cung cấp API để implement I2C device driver trong kernel space
+    - cung cấp API để implement I2C device driver trong user space
++ Code của I2C bus driver nằm ở `drivers/i2c/`
++ Code của I2C controller driver nằm ở `driver/i2c/busses/`
++ Code của I2C device driver nằm rải rác trong `drivers/`, phụ thuộc vào framework được dùng để expose devices
+## Registering an I2C device driver
++ Như các bus subsystem khác, I2C subsystem định nghĩa `struct i2c_driver` kế thừa từ `struct device_driver` và cần phải khởi tạo và đăng ký bởi mỗi I2C device driver
+    - thông thường, struct này trỏ tới hàm probe() và remove()
+    - nó cũng chứa `id_table`, dùng cho việc phát hiện I2C devices mà không dựa vào device tree
++ `i2c_add_driver()` và `i2c_del_driver()` được dùng để register/inregister driver
++ nếu driver không làm gì trong init()/exit() thì có thể dùng `module_i2c_driver()` thay thế
+## Registering an I2C device driver: example
++ ![alt text](images/image-31.png)
+## Registering an I2C device: non-DT
++ Ở platform không dùng device tree, `struct i2c_board_info` cho phép mô tả cách mà I2C device kết nối tới board
++ Các struct này được định nghĩa với macro `I2C_BOARD_INFO()`, có param là device name và địa chỉ của slave device
++ mảng các struct này được đăng ký vào cho mỗi bus bằng việc dùng `i2c_register_board_info()`
+## Registering an I2C device, non-DT example
++ ![alt text](images/image-32.png)
+## Registering an I2C device, in the DT
++ trong device tree, I2C controller device được định nghĩa ở file .dtsi, và thường status = "disabled"
++ tại device tree của board:
+    - I2C controller device được enabled
+    - tần số bus I2C được khai báo, dùng `clock-frequency`
+    - I2C device được mô tả là node con trong I2C controller bus, nơi mà `reg` được đăng ký là địa chỉ của slave trên bus
++ example
+    - khai báo I2C controller
+        + ![alt text](images/image-34.png)
+        + mô tả các thông tin cần thiết cho bus I2C
+    - khai báo I2C device
+        + ![alt text](images/image-35.png)
+        + mô tả các thông tin của device gắn vào bus I2C
+## probe() and remove()
++ probe() có nhiệm vụ khởi tạo device và đăng ký nó vào kernel phù hợp, nó nhận các tham số
+    - `struct i2c_client` pointer, cái mà đại diện cho chính I2C device mà device tree truyền vào, kế thừa từ `struct device`
+    - với Linux kernel < 6.4, probe() có tham số thứ 2 không được sử dụng
+    - ![alt text](images/image-36.png)
++ remove() có nhiệm vụ hủy đăng ký device khroi kernel và shut it down
+    - ![alt text](images/image-37.png)
+## Communicating with the I2C device: raw API
++ Gửi 1 `buf` tới I2C device
+    - `int i2c_master_send(const struct i2c_client *client, const char *buf, int count);`
++ Nhận 1 `count` bytes từ I2C device và lưu vào `buf`
+    - `int i2c_master_recv(const struct i2c_client *client, char *buf, int count);`
++ cả 2 function trên trả về số âm báo lỗi, hoặc là số byte truyền được
++ giữa quá trình ghi và đọc cần có khoảng delay để dữ liệu kịp ghi được vào
+## Communicating with the I2C device: message transfer
++ API gửi message cho phép mô tả thông tin truyền đi bao gồm vài messages, với mỗi message được tryền đi theo 1 hướng
+    - `int i2c_transfer(struct i2c_adapter *adap, struct i2c_msg *msgs, int num);`
+        + `struct i2c_adapter` pointer được lấy thông qua `client->adapter`
+        + `struct i2c_msg` định nghĩa length, location và direction của message
+## I2C: message transfer example
++ ![alt text](images/image-38.png)
+## I2C functionality
++ không phải tất cả I2C đều hỗ trợ tất cả tính năng 
++ I2C controller driver bảo với I2C core rằng chức năng nào chúng hỗ trợ
++ 1 I2C device driver phải kiểm tra chức năng nào chúng được cấp vởi I2C controller
++ `i2c_check_functionality()` dùng để check việc này
++ `include/uapi/linux/i2c.h` chứa define các chức năng tồn tại trong I2C
++ Tài liệu Linux support for I2C: https://www.kernel.org/doc/html/latest/i2c/
+## Thực hành
+- Trong folder /dev chứa 
+    + terminal device ttyX: giao diện người dùng nhận input và xuất output 
+    + mmcblk: bộ nhớ mmc và các phân vùng
+    + sdX: device như usb
+- Trong folder /sys chứa
+    + /sys/class: expose các device được phân loại bởi kernel quản lý chúng. 
+        - /sys/class/net chứa các network interface của hệ thống
+        - /sys/class/thermal: chứa thông tin về nhiệt độ của system
+    + /sys/bus: chứa tất cả bus của hệ thống
+- COde với i2c thì #include <linux/i2c.h>
+- `MODULE_DEVICE_TABLE`: export thông tin mà driver hỗ trợ ra user space
+- sau khi probe() được gọi, driver nunchuk sẽ nằm trong `/sys/bus/i2c/driver/nunchuk`
+- `device_property_read_bool`: kiểm tra giá trị 1 property trong device tree
+- để khởi tạo được nunchuk, cần gửi `(các mã sau chỉ dành riêng cho nunchuk)`
+    + lần đầu 0xf0 và 0x55 để tắt tính năng mã hóa của nunchuk, ghi 0x55 vào thanh ghi 0xf0 để tắt mã hóa
+    + tiếp theo gửi 0xfb và 0x00 để reset dữ liệu của nunchuk về raw data
+    + ghi 0x00 để yêu cầu nunchuk cập nhật giá trị hiện tại của các nút nhấn
+- không được include các header trong asm/
