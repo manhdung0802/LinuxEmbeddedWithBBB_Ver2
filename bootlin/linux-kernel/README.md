@@ -783,7 +783,9 @@ MODULE_AUTHOR("William Shakespeare");
         - /sys/class/thermal: chứa thông tin về nhiệt độ của system
     + /sys/bus: chứa tất cả bus của hệ thống
 - COde với i2c thì #include <linux/i2c.h>
-- `MODULE_DEVICE_TABLE`: export thông tin mà driver hỗ trợ ra user space
+- `MODULE_DEVICE_TABLE`: 
+    + export thông tin của device id ra user space để tự động load kernel module mỗi khi thiết bị cắm vào, k cần gọi modprobe hay insmod
+    + Nếu k dùng macro này thì phải insmod module thủ công dù device đã được cắm vào, macro này sinh ra modalias trong .ko để udev nhận event rồi load module tương ứng (check bằng modinfo)
 - sau khi probe() được gọi, driver nunchuk sẽ nằm trong `/sys/bus/i2c/driver/nunchuk`
 - `device_property_read_bool`: kiểm tra giá trị 1 property trong device tree
 - để khởi tạo được nunchuk, cần gửi `(các mã sau chỉ dành riêng cho nunchuk)`
@@ -791,3 +793,103 @@ MODULE_AUTHOR("William Shakespeare");
     + tiếp theo gửi 0xfb và 0x00 để reset dữ liệu của nunchuk về raw data
     + ghi 0x00 để yêu cầu nunchuk cập nhật giá trị hiện tại của các nút nhấn
 - không được include các header trong asm/
+
+# Kernel framework for device drivers
+## Kernel and Device drivers
+- Trong linux, 1 driver luôn giao tiếp với: 
+    + 1 framework: cho phép driver expose tính năng phần cứng tới user space app
+    + 1 bus: 1 phần của device model, để phát hiện và giao tiếp với hardware
+- ![alt text](images/image-39.png)
+- Section này cover về kernel framwork
+## User space vision of devices
+- Types of devices
+    + Trong linux, có 4 loại device:    
+        - Network devices: truy cập trong user space bằng `ip a`
+        - Block devices: cung cấp cho user space khả năng truy cập vào bộ nhớ USB, hard disk, chúng được truy cập qua `/dev`
+        - Character devices: cung cấp cho user space khả năng truy cập vào các device (input, sound, graphic, ...), chúng được truy cập qua `/dev`
+        - Sysfs devices: nằm trong `/sys`
+## Devices: everything is a file
+- phần lớn các system objects đều là files
+- cho phép app open, read, write, close, ...
+- vì vậy device cần phải thể hiện qua file để app có thể truy cập -> device file
+- tất cả device file được chứa trong `/dev`
+- mỗi device file có 3 thông só:
+    + type: char or block
+    + major: class of device
+    + minor: identifier in class
+## Creating device files
+- Trước Linux 2.6.32, device file cần được tạo thủ công bằng `mknod`
+- `devtmpfs` virtual filesystem có thể mount vào `/dev` và chứa tất cả device đã đăng ký với kernel. Thuộc tính `CONFIG_DEVTMPFS_MOUNT` trong Kernel dùng để mount tự động vùng này lúc boot, ngoại trừ boot với `initramfs`
+- `devtmpfs` có thể được hỗ trợ thêm bởi `udev` hoặc `mdev` để điều chỉnh permisssion/ownership, load kernel modules tự động và tạo symbol link tới devices
+## Character drivers
+- A character driver in the kernel
+    + từ góc nhìn của app, character device là 1 file
+    + Vì vậy character device implement các operations để khiến cho app nghĩ rằng device đó là 1 file
+    + Để làm được vậy, character driver cần implement các hàm read, write, ... của `struct file_operations`
+    + Linux filesystem layer sẽ đảm bảo operation của driver được gọi bởi user space app 
+- From user space to the kernel: character devices
+    + ![alt text](images/image-40.png)
+- open() and release()
+    + `int open(struct inode *i, struct file *f)`
+        - gọi khi user space mở file
+        - `struct inode`: đại diện cho 1 file trong filesystem (có thể là 1 file bình thường, 1 đường dẫn, symbol link, character device hoặc block device)
+        - `struct file`: là struct được tạo mỗi lần mở file, nhiều struct file có thể cùng trỏ tới cùng inode structure
+            + chứa thông tin như position, opening mode, ...
+            + `void *private_data`
+            + pointer trỏ vào file structure được pass vào tất cả operations
+    + `int release(struct inode *i, struct file *f)`
+        - gọi khi user space đóng file
+- read() and write()
+    + `ssize_t read(struct file *f, char __user *buf, size_t sz, loff_t *off)`
+        - đọc data từ device, ghi tối đa `sz` bytes vào `buf` và cập nhật current position trong `off`
+        - return về số bytes đọc được. Return 0 thường được user space hiểu là kết thúc file
+        - trong UNIX, read() thường bị block khi không có đủ data để đọc từ device
+    + `ssize_t write(struct file *f, const char __user *buf, size_t sz, loff_t *off)`
+        - đọc `sz` bytes từ `buf` rồi ghi data đó vào file, cần cập nhật lại position `off`
+- Exchanging data with user space 
+    + Kernel không cho phép truy cập trực tiếp vào user space memory, không cho phép memcpy() hay trỏ trực tiếp vào
+        - Việc trỏ vào user space bị vô hiệu quá để khiến việc khai thác lỗ hổng khó hơn
+        - Nếu địa chỉ truyền vào bởi app không hợp lệ, kernel có thể bị lỗi segfault
+        - Không bao giờ tin tưởng user space, user space app có thể truyển 1 kernel address mà kernel space đang muốn đọc hoặc ghi data
+    + Để giữ code kernel có tính linh động (portable), bảo mật và xử lý lỗi chính xác, driver cần dùng function đặc biệt để trao đổi data với user space
+    + A single value:
+        - `get_user(v, p)`: biến `v` của kernel lấy value của user space pointer `p`
+        - `put_user(v, p)`: giá trị của user space pointer `p` được set bằng giá trị của `v`
+    + A buffer
+        - `unsigned long copy_to_user(void __user *to, const void *from, unsigned long n);`
+        - `unsigned long copy_from_user(void *to, const void __user *from, unsigned long n);`
+        - return 0: success
+        - return khác 0: error, thường `return -EFAULT`
+    + ![alt text](images/image-41.png)
+- Zero copy access to user memory
+    + việc phải copy data tới hoặc từ 1 bộ đệm kernel trung gian có thể trở nên khó khăn nếu data quá lớn (như video chẳng hạn)
+    + Zero copy là cơ chế giúp hệ thống truyền tải dữ liệu thẳng từ nơi này qua nơi khác mà không cần tốn thời gian copy qua lại bộ đệm trung gian của hệ điều hành
+    + Các tùy chọn `zero copy`
+        - `mmap()`: là system call cho phép user space truy cập trực tiếp vào memory mapped I/O space
+        - `get_user_pages()` và các function liên quan khác để lấy mapping tới user pages mà không cần copy chúng
+- unlocked_ioctl()
+    + `long unlocked_ioctl(struct file *f, unsigned int cmd, unsigned long arg)`
+    + đây là hàm để gửi lệnh điều khiển từ user space xuống kernel space thông qua device file rồi tới phần cứng 
+    + liên quan tới `ioctl()` nhưng `ioctl()` có nhược điểm là block các tiến trình khác
+    + mở rộng khả năng của driver ngoài các API đọc ghi
+    + Ví dụ như: thay đổi tốc độ của serial port, cài đặt output format video, querying device serial number, ... được dùng rộng rãi trong các framework driver như ALSA(sound), V4L2(video)
+    + `cmd` là 1 số định danh cho biết thao tác nào cần được thực hiện
+    + `arg` là tùy chọn pass vào tham số thứ 3 của `ioctl(), có thể là số nguyên, địa chỉ, ...
+    + `cmd` và `arg` tùy theo định nghĩa của từng driver
+- `ioctl()` example
+    + kernel space
+        - ![alt text](images/image-42.png)
+    + user space 
+        - ![alt text](images/image-43.png)
+## The concept of kernel frameworks
+- Beyond character drivers: kernel framework - hơn cả character driver chính là kernel framework
+    + nhiều device driver không được implement trực tiếp như character drivers
+    + Thay vào đó chúng triển khai `struct file_operations` 1 lần và các driver cho cùng loại device truy cập vào để thực hiện tương tác với file
+    + chúng được implement dưới dạng 1 framework, dành cho 1 loại device cụ thể (framwbuffer, V4L, ....)
+        - driver kết nối vào 1 framework API hay vì vào `struct file_operations`
+        - framework triển khai `struct file_operations` 1 lần để expose character devices tới user space
+        - Việc triển khai này được chia sẻ cho tất cả device trong framework, tránh lặp lại code và nhất quán về user interface bất kể driver nào đang được dùng
+- Example: Some kernel frameworks
+    + ![alt text](images/image-44.png)
+    + `struct file_operations` được implement trong các phần core
+## Example: the input subsystem
