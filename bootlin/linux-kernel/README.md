@@ -893,3 +893,119 @@ MODULE_AUTHOR("William Shakespeare");
     + ![alt text](images/image-44.png)
     + `struct file_operations` được implement trong các phần core
 ## Example: the input subsystem
+- What is the input subsystem?
+    + Có nhiệm vụ quản lý tất cả sự kiện input tới từ user
+    + được chia thành 2 phần:
+        - device drivers: trao đổi với hardware, cung cấp events tới các input
+        - Event handlers: lấy events từ driver và pass vào nới cần qua các interface (hầu hết là qua `evdev`)
+    + Trong user space, nó thường được dùng bởi graphic stack như X.Org, Wayland, ...
+- Input subsystem diagram
+    + ![alt text](images/image-45.png)
+- Input subsystem overview
+    + Kernel option `CONFIG_INPUT`
+        - `menuconfig INPUT`
+            + `tristate "Generic input layer (needed for keyboard, mouse, ...)"`
+    + Implemented in `drivers/input`
+        - input.c
+        - input-poller.c
+        - evdev.c
+    + Defines the user/kernel API
+        - `include/uapi/linux/input.h`
+    + Danh sách các operation của 1 input driver cần được implement và các helper function cần cho driver
+        - `struct input_dev` cho device driver part
+        - `struct input_handler` cho event handler part
+        - `include/linux/input.h`
+- Input subsystem API
+    + 1 input device được mô tả bởi `struct input_dev`
+    + trước khi sử dụng, struct này cần được cấp phát và khởi tạo
+        - `struct input_dev *devm_input_allocate_device(struct device *dev);`
+    + dựa vào loại event được tạo ra, input bit field `evbit` và `keybit` cần được cấu hình
+        + `evbit`: loại sự kiện của nút nhấn (nhấn/thả/cảm ứng)
+        + `keybit`: tên của nút bấm 
+        ```c
+        set_bit(EV_KEY, myinput_dev.evbit);
+        set_bit(BTN_0, myinput_dev.keybit);
+        ```
+    + Khi input device đã được cấu hình, hãy đăng ký nó
+        - `int input_register_device(struct input_dev *);`
+    + Những event này được gửi bởi driver tới event handler bằng 
+        - `void input_event(struct input_dev *dev, unsigned int type, unsigned int code, int value)`
+        - document của event types: `input/event-codes`
+        - 1 event được hình thành từ sự thay đổi data đầu vào như trạng thái nút bấm, axis, ...
+        - Input subsystem cung cấp các wrapper của `void input_event` như
+            + `input_report_key()`
+            + `input_report_abs()`
+    + Sau khi đã submit các event, cần thông báo cho input core để sync data bằng cách gọi: 
+        - `void input_sync(struct input_dev *dev)`
+    + Example from drivers/hid/usbhid/usbmouse.c
+        - ![alt text](images/image-46.png)
+- Polling input devices
+    + Input subsystem cung cấp 1 API để hỗ trợ các input devices không tự raise ngắt mà cần phải scan định kỳ để phát hiện thay đổi state. Tức là các input device này khi thay đổi state thì không tự tạo ngắt để thông báo mà ta cần phải tự cập nhật lại nó
+    + `int input_setup_polling(struct input_dev *dev, void (*poll_fn)(struct input_dev *dev))`
+        - `poll_fn`: là function mà sẽ được gọi định kì để check
+    + chu kỳ polling được set bằng `input_set_poll_interval()` hoặc `input_set_min_poll_interval()` và `input_set_max_poll_interval()`
+- evdev user space interface
+    + main user space interface kết nối tới input devices là event interface
+    + mỗi input devices được đại diện bằng 1 character device `/dev/input/event<X>`
+    + 1 user space app có thể blocking read hoặc non-blocking read, cũng có thể dùng `select()` để nhận event sau khi mở device
+    + Mỗi lần đọc sẽ return về `struct input_event` theo format sau:
+        ```c
+        struct input_event {
+            struct timeval time;
+            unsigned short type;
+            unsigned short code;
+            unsigned int value;
+        };
+        ```
+    + Công cụ để test input device là `evtest`: `https://cgit.freedesktop.org/evtest/`
+## Device-managed allocations
+- Device managed allocations
+    + hàm `probe()` chịu trách nhiệm cấp phát 1 số tài nguyên đặc biệt: memory, mapping I/O registers, registering interrupt handlers, ...
+    + Những resource này cần được giải phóng chính xác trong `probe()` khi gặp lỗi và `remove()`
+    + Việc giải phóng tài nguyên này cần nhiều code để xử lý lỗi, vì vậy `device managed allocations` ra đời
+    + Ý tưởng là kết hợp việc cấp phát tài nguyên với `struct device` và tự động giải phóng khi device biến mất hoặc khi device hủy liên kết với driver
+    + những function để tự động giải phóng tài nguyên có prefix là `devm_`: `devm_kmalloc()`, `devm_ioremap()`, xem thêm các hàm tại `https://www.kernel.org/doc/html/latest/driver-api/driver-model/devres.html`
+- Device managed allocations: memory allocation example
+    + ![alt text](images/image-47.png)
+- Device managed allocations caveats
+    + Việc dọn dẹp hoàn tất khi `struct device` được dọn xong, không còn reference gì cả
+    + Không dùng các hàm `devm_` cho các vùng bộ nhớ nào mà các thành phần ngoài driver có thể chạm tới. Ví dụ, nếu user space vẫn đang mờ file mà device bị rút ra, remove() sẽ chạy và devm sẽ giải phóng vùng nhớ. User space không kịp đóng file và sẽ gây crash vì truy cập vùng bộ nhớ đã mất
+    + Nếu dùng A reference B và B cũng nắm 1 reference của A và dùng `devm` thì hệ thống không biết cần giải phóng cái nào trước và tài nguyên sẽ bị kẹt lại, không bao giờ được xóa
+    + Vì vậy khi dùng các hàm quản lý memory `devm_` thì cần chú ý vòng đời của object
+## Driver data structures and links
+- Driver data layout Three main data structures
+    + Khi viết driver, cần tổ chức và quản lý dữ liệu của 1 device hợp lý. VÌ vây cần thiết kế mô hình gồm 3 tầng cấu trúc để giải quyết 3 bài toán: 
+    + Bus-specific device structure (`struct i2c_client`, `struct usb_dev`, ...) - quản lý cách thiết bị giao tiếp với bus nào
+        - struct đại diện cho device theo loại bus
+        - những struct luôn có `struct device` bên trong
+        - khi probe() chạy, con trỏ trỏ tới những struct này sẽ được truyền vào probe()
+    + Framework-specific device struct (`struct input_dev`, `struct rtc_device`, ...) - để biết device này dùng để làm gì
+        - có thể có `struct device` bên trong nếu framework muốn tạo ra device trong sysfs
+        - với 1 device, có thể có đồng thời 1 `struct device` và 1 `struct device`
+    + Driver **private data** - trạng thái riêng của device, driver
+        - là struct tự mình định nghĩa, chứa các thông tin cần thiết
+        - phụ thuộc vào driver cụ thể
+        - nó chứa reference tới bus và framwork device 
+        - lưu data riêng của driver
+- Driver data allocation strategies
+    + các chiến lược để tổ chức bộ nhớ RAM cho data của driver khi viết driver
+    + Private data được nhúng vào framwork device vì vậy 1 quá trình cấp phát sẽ cấp phát cho cả framework device và private data
+        - ![alt text](images/image-48.png)
+        - framework device là các struct như `struct input_dev`, ... tức là nó đại diện chung cho 1 tập hợp các thiết bị có cùng kiểu chức năng input
+    + framework cung cấp các hàm để cấp phát framework device, với 1 khoảng trống ở cuối để đặt private data vào đó
+        - ![alt text](images/image-49.png)
+    + framework device và private data được cấp phát riêng biệt
+        - ![alt text](images/image-50.png)
+- Phân biệt bus device và framework device
+    + bus device: là thiết bị đứng ở góc độ giao tiếp phần cứng, được kết nối vào board bằng bus: i2c bus, usb bus, ...
+    + framework device: là đại diện cho device ở góc độ chức năng đối với hệ điều hành. Tức là sau khi kết nối qua bus rồi thì device này làm được nhiệm vụ gì
+    + 1 device khi cắm vào thì hệ điều hành sẽ tạo ra 1 bus device và 1 framework device cho nó
+- Links between data structures
+    + trong các hàm callback của bus, ta sẽ pass bus device
+        - trong `struct device`, 1 trường có kích thước của con trỏ là `dev->driver_data` được dành cho driver sử dụng
+        - dùng `dev_set_drvdata()` trong `probe()` để đưa 1 tham chiếu tới private data
+        - từ các hàm callback của bus, ta lấy private data bằng `dev_get_drvdata()`
+    + trong các hàm callback của framework, ta sẽ pass framework device
+        - nếu framework device nhúng trong private data thì dùng `container_of()`, hoạt động dựa trên lệnh `offsetof()`
+        - ngược lại, dùng framework device `dev->driver_data` và lấy private data reference
+    + ![alt text](images/image-51.png)
