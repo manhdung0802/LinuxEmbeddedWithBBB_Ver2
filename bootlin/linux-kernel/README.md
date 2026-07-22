@@ -919,6 +919,8 @@ MODULE_AUTHOR("William Shakespeare");
     + 1 input device được mô tả bởi `struct input_dev`
     + trước khi sử dụng, struct này cần được cấp phát và khởi tạo
         - `struct input_dev *devm_input_allocate_device(struct device *dev);`
+        - return -ENOMEM nếu không cấp phát được bộ nhớ cho device
+        - gọi hàm này để đăng ký device với system, nếu không thì system không thể tạo ra device file trong /dev/input
     + dựa vào loại event được tạo ra, input bit field `evbit` và `keybit` cần được cấu hình
         + `evbit`: loại sự kiện của nút nhấn (nhấn/thả/cảm ứng)
         + `keybit`: tên của nút bấm 
@@ -928,6 +930,7 @@ MODULE_AUTHOR("William Shakespeare");
         ```
     + Khi input device đã được cấu hình, hãy đăng ký nó
         - `int input_register_device(struct input_dev *);`
+        - đưa device vào danh sách quản lý của system
     + Những event này được gửi bởi driver tới event handler bằng 
         - `void input_event(struct input_dev *dev, unsigned int type, unsigned int code, int value)`
         - document của event types: `input/event-codes`
@@ -1009,3 +1012,9 @@ MODULE_AUTHOR("William Shakespeare");
         - nếu framework device nhúng trong private data thì dùng `container_of()`, hoạt động dựa trên lệnh `offsetof()`
         - ngược lại, dùng framework device `dev->driver_data` và lấy private data reference
     + ![alt text](images/image-51.png)
+## Thực hành
+- `CONFIG_INPUT_EVDEV`: option kernel để tích hợp evdev vào kernel
+- đầu tiên cần add 1 input device vào system trong nunchuk.c
+    + thêm con trỏ `struct input_dev` trong probe(). Không để struct này global vì driver cần được dùng cho nhiều device nên mỗi khi probe được gọi, 1 input_dev mới dành cho 1 device mới được tạo
+    + gọi `devm_input_allocate_device` và `input_register_device`
+    + khi dùng `devm_input_allocate_device` thì không cần xử lý unregister device trong remove vi devm_ đã tự làm, thậm chí cũng không cần unregister cho `struct input_dev`
