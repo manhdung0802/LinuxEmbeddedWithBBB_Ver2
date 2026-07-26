@@ -10,9 +10,18 @@
         "**/.clangd": true,
         "**/.cache": true
     },
+    "files.watcherExclude": {
+        "**/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/**": true
+    },
     "[c]": {
         "editor.tabSize": 4,
         "editor.insertSpaces": false,
         "editor.detectIndentation": false
-    }
+    },
+    "markdown.copyFiles.destination": {
+        "**/*": "images/"
+    },
+    "markdown.copyFiles.overwriteBehavior": "nameIncrementally",
+    "gnuGlobal.objDir": "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux",
+    "C_Cpp.default.compilerPath": "/home/as/x-tools/arm-bootlin-linux-gnueabihf/bin/arm-bootlin-linux-gnueabihf-gcc"
 }

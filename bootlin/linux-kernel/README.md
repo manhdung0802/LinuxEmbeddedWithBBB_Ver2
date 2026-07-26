@@ -1,5 +1,59 @@
 # Menu
 
+- [Linux Kernel Introduction](#linux-kernel-introduction)
+  - [Linux kernel in the system](#linux-kernel-in-the-system)
+  - [System calls](#system-calls)
+  - [Pseudo system](#pseudo-system)
+  - [Linux kernel source code](#linux-kernel-source-code)
+- [Linux kernel usage](#linux-kernel-usage)
+  - [Kernel configuration](#kernel-configuration)
+  - [Compiling and installing the kernel](#compiling-and-installing-the-kernel)
+  - [Booting the kernel](#booting-the-kernel)
+  - [Using kernel modules](#using-kernel-modules)
+- [Developing kernel modules](#developing-kernel-modules)
+- [Describing hardware devices](#describing-hardware-devices)
+  - [Discoverable hardware: USB and PCI](#discoverable-hardware-usb-and-pci)
+  - [Describing non-discoverable hardware](#describing-non-discoverable-hardware)
+  - [Device tree](#device-tree)
+  - [Thực hành](#thực-hành)
+- [Introduction to pin muxing](#introduction-to-pin-muxing)
+  - [What is pin muxing](#what-is-pin-muxing)
+  - [Pin muxing in the Linux kernel](#pin-muxing-in-the-linux-kernel)
+  - [Thực hành](#thực-hành-1)
+- [Linux device and driver model](#linux-device-and-driver-model)
+  - [Introduction](#introduction)
+  - [Example of the USB bus](#example-of-the-usb-bus)
+  - [Platform drivers](#platform-drivers)
+- [Introduction to the I2C subsystem](#introduction-to-the-i2c-subsystem)
+  - [What is I2C?](#what-is-i2c)
+  - [An I2C bus example](#an-i2c-bus-example)
+  - [The I2C bus driver](#the-i2c-bus-driver)
+  - [Registering an I2C device driver](#registering-an-i2c-device-driver)
+  - [Registering an I2C device driver: example](#registering-an-i2c-device-driver-example)
+  - [Registering an I2C device: non-DT](#registering-an-i2c-device-non-dt)
+  - [Registering an I2C device, non-DT example](#registering-an-i2c-device-non-dt-example)
+  - [Registering an I2C device, in the DT](#registering-an-i2c-device-in-the-dt)
+  - [probe() and remove()](#probe-and-remove)
+  - [Communicating with the I2C device: raw API](#communicating-with-the-i2c-device-raw-api)
+  - [Communicating with the I2C device: message transfer](#communicating-with-the-i2c-device-message-transfer)
+  - [I2C: message transfer example](#i2c-message-transfer-example)
+  - [I2C functionality](#i2c-functionality)
+  - [Thực hành](#thực-hành-2)
+- [Kernel framework for device drivers](#kernel-framework-for-device-drivers)
+  - [Kernel and Device drivers](#kernel-and-device-drivers)
+  - [User space vision of devices](#user-space-vision-of-devices)
+  - [Devices: everything is a file](#devices-everything-is-a-file)
+  - [Creating device files](#creating-device-files)
+  - [Character drivers](#character-drivers)
+  - [The concept of kernel frameworks](#the-concept-of-kernel-frameworks)
+  - [Example: the input subsystem](#example-the-input-subsystem)
+  - [Device-managed allocations](#device-managed-allocations)
+  - [Driver data structures and links](#driver-data-structures-and-links)
+  - [Thực hành](#thực-hành-3)
+- [Memory Management](#memory-management)
+  - [Physical and virtual memory](#physical-and-virtual-memory)
+  - [Virtual memory organization](#virtual-memory-organization)
+
 # Linux Kernel Introduction
 ## Linux kernel in the system
 - ![alt text](images/image.png)
@@ -52,8 +106,8 @@
     + dùng để restore nếu thiết lập kernel lỗi
 ## Compiling and installing the kernel
 - cài kernel module cho hệ thống nhúng
-    + make modules hoặc make -j4 (nếu build cùng kernel)
-    + make INSTALL_MOD_PATH=<dir>/ modules_install
+    + `make modules` hoặc `make -j4` (nếu build cùng kernel)
+    + `make INSTALL_MOD_PATH=<dir>/ modules_install`
 - tổng quan việc compile và install kernel
     + ![alt text](images/image-1.png)
 ## Booting the kernel
@@ -933,6 +987,7 @@ MODULE_AUTHOR("William Shakespeare");
         - đưa device vào danh sách quản lý của system
     + Những event này được gửi bởi driver tới event handler bằng 
         - `void input_event(struct input_dev *dev, unsigned int type, unsigned int code, int value)`
+        - các hàm này dùng để trả data từ input lên 
         - document của event types: `input/event-codes`
         - 1 event được hình thành từ sự thay đổi data đầu vào như trạng thái nút bấm, axis, ...
         - Input subsystem cung cấp các wrapper của `void input_event` như
@@ -1016,5 +1071,143 @@ MODULE_AUTHOR("William Shakespeare");
 - `CONFIG_INPUT_EVDEV`: option kernel để tích hợp evdev vào kernel
 - đầu tiên cần add 1 input device vào system trong nunchuk.c
     + thêm con trỏ `struct input_dev` trong probe(). Không để struct này global vì driver cần được dùng cho nhiều device nên mỗi khi probe được gọi, 1 input_dev mới dành cho 1 device mới được tạo
-    + gọi `devm_input_allocate_device` và `input_register_device`
+    + gọi `devm_input_allocate_device`
     + khi dùng `devm_input_allocate_device` thì không cần xử lý unregister device trong remove vi devm_ đã tự làm, thậm chí cũng không cần unregister cho `struct input_dev`
+    + interval cần set sau khi đăng ký polling
+    + `input_set_drvdata`: gắn con trỏ i2c dev cho input_dev (tạo struct trung gian chứa con trỏ để polling đoc được)
+    + `input_register_device` cần được gọi cuối cùng sau khi đã thiết lập các thứ liên quan input
+    + dùng evtest để test input
+
+# Memory Management
+## Physical and virtual memory
+- ![alt text](images/image-52.png)
+- trong không gian địa chỉ ảo, mỗi process luôn có 1 không gian ảo riêng
+- Nhờ có địa chỉ ảo mà các process có thể dùng chung các dải địa chỉ ảo giống nhau mà không sợ bị ghi đè
+- CPU luôn thấy địa chỉ ảo 
+- MMU mapping địa chỉ ảo và địa chỉ thật
+## Virtual memory organization
+- ![alt text](images/image-53.png)
+- `PAGE_OFFSET`: là mốc phân chia giữa kernel space và user space 
+- Vùng kernel:
+    + chứa kernel code
+    + cấp phát vùng nhớ cho các kernel module
+    + ánh xạ vật lý toàn bộ kernel
+    + giống nhau ở mọi process: vùng kernel này của các process luôn trỏ về cùng 1 vị trí vật lý duy nhất của kernel để đảm bảo nhất quán
+- Vùng Process n
+    + chứa code và data của process
+    + memory-mapped files
+    + mỗi process có không gian địa chỉ riêng biệt
+- Log của virtual mapping này được in ra từ đầu khi khởi động
+## Physical/virtual memory mapping on 32-bit systems
+- ![alt text](images/image-54.png)
+- trong hệ thống 32bit, kernel space bị giới hạn 1GB memory. Nếu có nhiều bộ nhớ vật lý hơn, phần còn lại của memory sẽ không được truy cập bởi kernel space, chỉ có thể dùng trong user space
+- Dù nhiều process nhưng chúng đều chỉ truy cập vào 1GB bộ nhớ kernel này
+- Để cho phép kernel truy cập được nhiều hơn:
+    + cấu hình `CONFIG_VMSPLIT_2G` hoặc `CONFIG_VMSPLIT_1G` -> giảm user space memory của mỗi process
+    + bật `highmem` support nếu kiến trúc hỗ trợ
+- Nhược điểm là kernel nếu mapping 1:1 địa chỉ ảo và vật lý thì chỉ map được khoảng 1GB trong RAM, phần còn lại kernel không thể đụng tới được, không có địa chỉ ảo nào map vào được vùng bộ nhớ còn lại
+## Physical/virtual memory mapping on 64-bit systems (4kiB-pages)
+- ![alt text](images/image-55.png)
+- trong hệ thống 64bit, kernel có tới 256TiB memory để map địa chỉ, lớn hơn RAM thực tế dùng trên thiết bị nên kernel có thể nhìn thấy toàn bộ vùng nhớ RAM
+- giữa kernel và process có 16M TiB trống để tách biệt 2 vùng này
+## User space virtual address space
+- Khi 1 process start, executable code được load vòa ram và được map vào không gian địa chỉ ảo
+- Trong quá trình thực thi, việc mapping memory có thể được thực hiện thêm như:
+    + memory allocations
+    + memory mapped files
+    + mmap areas
+    + ...
+## Userspace memory allocations
+- Userspace mapping có thể nhắm tới toàn bộ memory, có nghĩa là userspace được cấp bộ nhớ từ bất kỳ vùng nào còn trống trong memory
+- Khi cấp phát bộ nhớ, memory có thể chưa được cấp phát trên phần cứng thật
+    + Kernel dùng tín hiệu Fault paging để cấp phát physical page. Physical page được cấp phát khi truy cập vào virtual address tạo ra page fault
+    + hoặc có thể memory bị swap (cất đi tạm thời)
+    + `mlock/mlockall` ra lệnh cho kernel cấp bộ nhớ RAM thực ngay lập tức 
+- Việc cấp phát memory cho user space được cho phép cấp quá mức (lớn hơn RAM vật lý) -> có thể dẫn tới tràn memory
+    + có thể cấu hình `/proc/sys/vm/overcommit_*` để quản lý việc cấp bộ nhớ này
+- Khi tràn bộ nhớ, OOM killer sẽ kill 1 số process
+## Kernel memory allocators
+- ![alt text](images/image-56.png)
+## Page allocator
+- phù hợp cho cấp phát medium size
+- Kernel thường quản lý bộ nhớ theo page, 1 page thường là 4K, nhưng có thể lớn hơn ở kiến trúc khác nhau
+- Để giảm việc quản lý phúc tạp, kernel dùng thuật toán Buddy, ép việc cấp phát phải là lũy thừ của 2 (1 page, 2 page, 4 page, 8 page, ....)
+- kích thước tối đa thường là 8192KB, nhưng có thể dựa vào cấu hình kernel
+- việc cấp phát bộ nhớ này liên tục nhau về mặt vật lý
+## Page allocator API
+- dùng ở kernel space
+- `unsigned long get_zeroed_page(gfp_t gfp_mask)`
+    + return về địa chỉ ảo của free page (vùng nhớ đang trống), khởi tạo giá trị 0 cho vùng nhớ
+- `unsigned long __get_free_page(gfp_t gfp_mask)`
+    + tương tự nhưng không khởi tạo giá trị 0 
+- `unsigned long __get_free_pages(gfp_t gfp_mask, unsigned int order)`
+    + return về địa chỉ áo bắt đầu của vùng chứa các page có địa chỉ vật lý nối tiếp nhau -> cấp phát các page địa chỉ ảo liên tiếp nhau
+    + `order`: là số page muốn cấp, lũy thừa của 2
+- `void free_page(unsigned long addr)`
+    + giải phóng 1 page
+- `void free_pages(unsigned long addr, unsigned int order)`
+    + giải phóng nhiều page, `order` là lũy thừa 2 page cần giải phóng
+## Page allocator flags - gfp_t
+- `GFP_KERNEL`: cấp bộ nhớ tiêu chuẩn, việc cấp phát có thể block tiến trình để tìm memory khả dụng. Trong các trường hợp thì đều ổn ngoại trừ interrupt
+- `GFP_ATOMIC`: ram được cấp từ code sẽ không được phép chặn, cho phép truy cập khẩn cấp nhưng vẫn có thể fail nếu không có memory sẵn sàng. Flag này dùng cho ngắt hoặc các nhiệm vụ khẩn cấp
+- các flag khác: `include/linux/gfp_types.h`
+## SLAB allocator - bộ cấp phát SLAB
+- cấp phát bộ nhớ nhỏ hơn 1 page size cho các driver cần ít memory hơn page size (4KB)
+- cho phép tạo caches chứa các object có cùng kích thước
+- size của object có thể nhỏ hoặc lớn hơn page size
+- bộ cấp pháp SLAB đảm nhận nhiệm vụ tăng hoặc giảm size cache nếu cần dựa vào số lượng object được cấp phát. SLAB dùng page allocator để cấp phát và giải phóng pages
+- SLAB cache được dùng cho cấu trúc dữ liệu mà xuất hiện nhiều trong kernel như: file object, process description, ...
+- SLAB allocator hiếm khi dùng cho các driver
+- ![alt text](images/image-57.png)
+- Dễ hiểu thì SLAB như là người lấy 4KB đó đi chia nhỏ ra rồi bán lại cho các process, driver cần đúng như chúng muốn, chứ không cần thiết phải lấy cả 4KB hoặc 8KB, ... Giống như là muốn bao nhiêu thì lấy bấy nhiêu
+- SLAB allocator giảm thời gian cấp phát thô từ RAM vật lý và chi phí khởi tạo lại các biến nội bộ của hệ điều hành
+## Different SLAB allocators
+- có nhiều phiên bản SLAB allocator khác nhau, nhưng đều tương thích về mặt API
+- chọn phiên bản SLAB lúc cấu hình kernel
+    + `CONFIG_SLUB`: allocator mặc định, lựa chọn tốt, ít phân mảnh
+    + `CONFIG_SLUB_TINY`: chiếm dụng bộ nhớ tối thiểu, hi sinh khả năng mở rộng, debug. Chỉ dùng cho các hệ thống dưới 16MB ram 
+## kmalloc allocator
+- cấp phát bộ nhớ đa mục đích trong linux kernel
+- với size nhỏ, nó dựa vào SLAB cache, đặt lên là `kmalloc-xxx` trong `/proc/slabinfo`
+- với size lớn, nó dựa vào page allocator
+- **vùng bộ nhớ được cấp là vùng vật lý liên tục**
+- size của vùng được cấp được làm tròn lên bằng kích thước nhỏ nhất của SLAB cache mà nó có thể chứa vừa 
+- dùng các flag như page allocator (GFP_KERNEL, GFP_ATOMIC, ...)
+- Mỗi lần cấp phát tối đa 4MB
+- Tổng dung lượng cấp phát tối đa 128MB
+- Nên dùng để cấp phát trừ khi có lý do nào khác để dùng allocator khác
+## kmalloc API
+- include <linux/slab.h>
+- `void *kmalloc(size_t size, gfp_t flags)`
+    + cấp phát size bytes, trả về con trỏ virtual address trỏ tới vùng đó
+    + flags: flags allocator
+- `void kfree(const void *objp)`
+    + giải phóng 1 vùng cấp phát từ `kmalloc`
+- `void *kzalloc(size_t size, gfp_t flags)`
+    + cấp phát vùng nhớ với khởi tạo là 0
+- `void *kcalloc(size_t n, size_t size, gfp_t flags);`
+    + cấp phát bộ nhớ cho mảng n phần tử với 1 phần tử có kích thước size byte, và set data vùng nhớ là 0 
+- `void *krealloc(const void *p, size_t new_size, gfp_t flags)`
+    + thay đổi kích thước của vùng nhớ là con trỏ p đang nắm, đổi thành new_size bằng việc cấp phát lại vùng mới rồi copy data qua nếu data mới không vừa với page alignment của vùng cũ. Còn nếu vẫn vừa với vùng cũ thì giữ nguyên vùng cũ và đổi size
+## devm_kmalloc functions
+- tự động giải phóng vùng nhớ khi device hoặc module bị gỡ bỏ
+- `void *devm_kmalloc(struct device *dev, size_t size, gfp_t gfp);`
+- `void *devm_kzalloc(struct device *dev, size_t size, gfp_t gfp);`
+- `void *devm_kcalloc(struct device *dev, size_t n, size_t size, gfp_t flags);`
+- `void *devm_kfree(struct device *dev, void *p);`
+- trong probe() thì devm này dùng khi cấp phát bộ nhớ cho các struct device (i2c_client, spi_device, ...)
+## vmalloc allocator
+- có thể cấp phát bộ nhớ mà không cần chúng liên tục, tức là gom các mảnh bộ nhớ thành 1 cục rồi cấp phát
+- size của bộ nhớ được yêu cầu được làm tròn lên page tiếp theo (không hiệu quả cho cấp phát nhỏ)
+- có khả năng cấp phát được bộ nhớ khá lớn, vì phân mảnh bộ nhớ không phải là vấn đề. vmalloc sẽ đi gom các mảnh bộ nhớ rồi ghép lại cho đủ bộ nhớ yêu cầu
+- không phù hợp cho DMA (Direct memory access)
+- API trong `include/linux/vmalloc.h`
+    + `void *vmalloc(unsigned long size);`
+    + `void vfree(void *addr);`
+## Kernel memory debugging
+- KASAN: detect lỗi bộ nhớ động, tốn tài nguyên
+- KFENCE: ít tốn tài nguyên hơn KASAN
+- Kmemleak: check cho memory leak, tốn tài nguyên
+
+# I/O memory
+## Memory-mapped I/O

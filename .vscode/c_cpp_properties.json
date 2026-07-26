@@ -3,15 +3,12 @@
         {
             "name": "Linux Kernel ARM (BBB Cross-Compile)",
             "includePath": [
-                "${workspaceFolder}/**",
-                "${workspaceFolder}/ldd/source/linux_bbb_5.10.168-ti-rt-r76/include",
-                "${workspaceFolder}/ldd/source/linux_bbb_5.10.168-ti-rt-r76/include/uapi",
-                "${workspaceFolder}/ldd/source/linux_bbb_5.10.168-ti-rt-r76/include/generated",
-                "${workspaceFolder}/ldd/source/linux_bbb_5.10.168-ti-rt-r76/include/generated/uapi",
-                "${workspaceFolder}/ldd/source/linux_bbb_5.10.168-ti-rt-r76/arch/arm/include",
-                "${workspaceFolder}/ldd/source/linux_bbb_5.10.168-ti-rt-r76/arch/arm/include/generated",
-                "${workspaceFolder}/ldd/source/linux_bbb_5.10.168-ti-rt-r76/arch/arm/include/uapi",
-                "${workspaceFolder}/ldd/source/linux_bbb_5.10.168-ti-rt-r76/arch/arm/include/generated/uapi"
+                "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/include",
+                "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/arch/arm/include",
+                "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/arch/arm/include/generated",
+                "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/include/uapi",
+                "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/arch/arm/include/uapi",
+                "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/include/generated/uapi"
             ],
             "defines": [
                 "__KERNEL__",
@@ -20,51 +17,25 @@
                 "CONFIG_ARM",
                 "KBUILD_MODNAME=\"pcd\""
             ],
-            "compilerPath": "/usr/bin/arm-linux-gnueabihf-gcc",
+            "compilerPath": "/home/as/x-tools/arm-bootlin-linux-gnueabihf/bin/arm-bootlin-linux-gnueabihf-gcc",
             "cStandard": "gnu11",
             "cppStandard": "gnu++17",
             "intelliSenseMode": "linux-gcc-arm",
             "browse": {
                 "path": [
-                    "${workspaceFolder}/ldd/source/linux_bbb_5.10.168-ti-rt-r76/include",
-                    "${workspaceFolder}/ldd/source/linux_bbb_5.10.168-ti-rt-r76/arch/arm/include",
-                    "${workspaceFolder}"
+                    "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/include",
+                    "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/arch/arm/include",
+                    "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/drivers/spi",
+                    "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/drivers/gpio",
+                    "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/drivers/base",
+                    "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux"
                 ],
-                "limitSymbolsToIncludedHeaders": true
+                "limitSymbolsToIncludedHeaders": false,
+                "databaseFilename": "${workspaceFolder}/.vscode/.vsc_cache.db"
             }
         },
         {
-            "name": "Linux Kernel Host x86 (IntelliSense)",
-            "includePath": [
-                "${workspaceFolder}/**",
-                "/lib/modules/5.15.0-139-generic/build/include",
-                "/lib/modules/5.15.0-139-generic/build/include/uapi",
-                "/lib/modules/5.15.0-139-generic/build/include/generated",
-                "/lib/modules/5.15.0-139-generic/build/include/generated/uapi",
-                "/lib/modules/5.15.0-139-generic/build/arch/x86/include",
-                "/lib/modules/5.15.0-139-generic/build/arch/x86/include/generated",
-                "/lib/modules/5.15.0-139-generic/build/arch/x86/include/uapi",
-                "/lib/modules/5.15.0-139-generic/build/arch/x86/include/generated/uapi"
-            ],
-            "defines": [
-                "__KERNEL__",
-                "MODULE",
-                "CONFIG_X86",
-                "CONFIG_X86_64",
-                "KBUILD_MODNAME=\"pcd\""
-            ],
-            "compilerPath": "/usr/bin/gcc",
-            "cStandard": "gnu11",
-            "cppStandard": "gnu++17",
-            "intelliSenseMode": "linux-gcc-x64",
-            "browse": {
-                "path": [
-                    "/lib/modules/5.15.0-139-generic/build/include",
-                    "/lib/modules/5.15.0-139-generic/build/arch/x86/include",
-                    "${workspaceFolder}"
-                ],
-                "limitSymbolsToIncludedHeaders": true
-            }
+            "name": "Do nothing"
         }
     ],
     "version": 4
