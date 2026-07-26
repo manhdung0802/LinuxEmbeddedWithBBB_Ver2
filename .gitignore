@@ -18,6 +18,7 @@ Module.symvers
 
 ldd/
 embedded-linux-bbb-labs
-linux-kernel-bbb-labs
+bootlin/linux-kernel/linux-kernel-bbb-labs/*
+
 .vscode
 lichee
