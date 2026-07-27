@@ -1100,7 +1100,7 @@ MODULE_AUTHOR("William Shakespeare");
 - Log của virtual mapping này được in ra từ đầu khi khởi động
 ## Physical/virtual memory mapping on 32-bit systems
 - ![alt text](images/image-54.png)
-- trong hệ thống 32bit, kernel space bị giới hạn 1GB memory. Nếu có nhiều bộ nhớ vật lý hơn, phần còn lại của memory sẽ không được truy cập bởi kernel space, chỉ có thể dùng trong user space
+- trong hệ thống 32bit, 1 process chỉ nhìn thấy 2^32=4GB không gian địa chỉ. Hệ điều hành chia 1Gb cho kernel space và 3Gb cho user space. Vì vậy kernel space bị giới hạn 1GB memory địa chỉ ảo để ánh xạ vào Ram vật lý. Nếu có nhiều bộ nhớ vật lý hơn, phần còn lại của memory sẽ không được truy cập bởi kernel space, chỉ có thể dùng trong user space
 - Dù nhiều process nhưng chúng đều chỉ truy cập vào 1GB bộ nhớ kernel này
 - Để cho phép kernel truy cập được nhiều hơn:
     + cấu hình `CONFIG_VMSPLIT_2G` hoặc `CONFIG_VMSPLIT_1G` -> giảm user space memory của mỗi process
