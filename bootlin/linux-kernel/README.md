@@ -1210,4 +1210,73 @@ MODULE_AUTHOR("William Shakespeare");
 - Kmemleak: check cho memory leak, tốn tài nguyên
 
 # I/O memory
-## Memory-mapped I/O
+- Mục đích của việc truy cập I/O memory là để
+    + điều khiển ngoại vi: ghi dữ liệu vào các thanh ghi trong vùng I/O memory của device để ra lệnh
+    + truyền dữ liệu ra ngoại vi: gửi chuỗi, data, ...
+    + đọc dữ liệu từ ngoại vi: 
+- Việc truy cập I/O memory là cách viết driver ở tầng thấp, truy cập trực tiếp thanh ghi, cần đọc spec của device -> dùng khi 1 device chưa có thư viện hay driver hỗ trợ
+- Còn việc dùng các hàm của i2c.h hoặc spi.h là driver ở tầng cao, không cần quan tâm I/O memory, cần quan tâm device tree kèm theo -> cách hiện đại
+## Memory-mapped I/O - MMIO
+- **Memory-mapped I/O**: là cơ chế ánh xạ địa chỉ vật lý của thanh ghi phần cứng vào chung 1 memory-mapped (bản đồ địa chỉ) với RAM
+- **I/O memory** là tập hợp tất cả các thanh ghi điều khiển bên trong các thiết bị ngoại vi nhưng được CPU tiếp cận và quản lý như một vùng bộ nhớ RAM thông thường.
+- Cả địa chỉ bộ nhớ và thanh ghi I/O đều giao tiếp với CPU qua chung địa chỉ bus
+- vì hệ thống coi các thiết bị ngoại vi đều như RAM nên có thể dùng các lệnh đọc/ghi thông thường để điều khiển phần cứng
+- Phần lớn sử dụng phương pháp I/O 
+## Requesting I/O memory
+- **I/O memory** là vùng không gian lưu trữ bên trong các con chip của ngoại vi
+- cách này nói cho kernel biết driver nào đang dùng thanh ghi I/O nào
+- `struct resource *request_mem_region(unsigned long start, unsigned long len, char *name)`
+- `void release_mem_region(unsigned long start, unsigned long len)`
+- việc đăng ký này cho phép chặn driver khác khỏi việc request cùng 1 thanh ghi I/O, tuy nhiên nếu cố tình viết code thì các driver vẫn có thể truy cập địa chỉ phần cứng lẫn nhau
+- kiểm tra địa chỉ vật lý của driver hoặc device đã dùng `request_mem_region` để đăng ký độc quyền vùng nhớ đó
+    + `/proc/iomem`
+## Mapping I/O memory in virtual memory
+- các lệnh load/store hoạt động OK với virtual address
+- để truy cập I/O memory, driver cần có 1 địa chỉ ảo để cpu có thể xử lý, vì I/O memory mặc định không được ánh xạ trong không gian virtual memory
+- hàm `ioremap` phù hợp để map địa chỉ thật với địa chỉ ảo
+    ```c
+    #include <linux/io.h>
+    void __iomem *ioremap(phys_addr_t phys_addr, unsigned long size);
+    void iounmap(void __iomem *addr);
+    ```
+    + cần kiểm tra `ioremap()` có return địa chỉ NULL không
+## ioremap()
+- ![alt text](images/image-58.png)
+- **MMIO registers**: các thanh ghi điều khiển thiết bị ngoại vi, nằm bên trong I/O memory
+## Managed API
+- thay vì gọi 3 hàm sau và handle các error
+    + `platform_get_resource()`: lấy offset vật lý
+    + `request_mem_region()`: giữ chỗ 1 vùng nhớ
+    + `ioremap()`: tạo virtual mapping cho vùng nhớ đó
+- thì ta nên dùng `devm_ioremap_resoure()`
+## Accessing MMIO devices: using accessor functions
+- phải cẩn thận khi truy cập các thanh ghi MMIO
+    + MMIO có thể sắp xếp lỏng lẻo, ta cần bắt buộc thực thi đúng thứ tự
+    + định dạng sắp xếp byte (Endianness) của device có thể khác với định dạng sắp xếp byte của CPU, có thể cần chuyển đổi định dạng
+    + trực tiếp đọc ghi vào địa chỉ được return từ `ioremap()` có thể không hoạt động với vài kiến trúc CPU
+## Ordering
+- đọc ghi vào thanh ghi MMIO-mapped của device được thực hiện theo thứ tự của chương trình
+- các lệnh đọc ghi trên RAM có thể bị CPU xáo trộn thứ tự gọi
+- Vì vậy có 1 số hàm truy cập (access functions) có sẵn rào cản bộ nhớ để giải quyết vấn đề xáo trộn thứ tự này:   
+    + Việc ghi sẽ bắt đầu với 1 write memory barrier khiến các lệnh ghi trước đó không vượt qua được
+    + Việc đọc kết thúc với 1 read memory barrier để đảm bảo thứ tự các lệnh đọc tiếp theo
+- Đôi khi việc CPU hoặc compiler thay đổi thứ tự thực thi không phải là vấn đề
+## MMIO access functions
+- `read[b/w/l/q]` và `write[b/w/l/q]` để truy cập vào các little-endian devices, bao gồm memory barriers
+- `ioread[8/16/32/64]` và `iowriteơ8/16/32/64]` đơn giản để đọc ghi nhưng cũng làm việc với cổng I/O, bao gồm memory barrier
+- `ioread[8/16/32/64]be` và `iowrite[8/16/32/64]` dùng để truy cập big-endian devices, bao gồm memory barrier
+- `__raw_read[b/w/l/q]` và `__raw_write[b/w/l/q]` để truy cập raw, không có chuyển đổi định dạng sắp xếp byte, không có memory barrier
+- `read[b/w/l/q]_relaxed` và `write[b/w/l/q]_relaxed` để truy cập little-endian device, không bao gồm memory barrier
+- khi dùng các hàm trên, phải truyền vào con trỏ được gắn nhãn `__iomem`
+- khi thấy con trỏ kèm từ khóa `__iomem` thì con trỏ đó đang trỏ tới vùng nhớ phần cứng I/O memory, không phải là địa chỉ RAM thông thường
+## MMIO access functions summary
+- ![alt text](images/image-59.png)
+## /dev/mem
+- được dùng để cung cấp cho userspace app quyền có thể truy cập vào địa chỉ vật lý
+- open `/dev/mem` rồi đọc/ghi tại các offset, giá trị đọc được là giá trị ở địa chỉ vật lý
+- có thể đọc ghi từ terminal với `devmem2`
+- để bảo mật, cần cấu hình kernel với 
+    + `CONFIG_STRICT_DEVMEM`: giới hạn `/dev/mem` chỉ truy cập được vào các địa chỉ không phải của RAM, tức là chỉ có thể truy cập vào địa chỉ của I/O memory
+    + `CONFIG_IO_STRICT_DEVMEM`: chỉ cho phép truy cập vào các vùng I/O memory đang rảnh, tức là vùng chưa có trong `/proc/iomem`
+
+## Clocking and power management

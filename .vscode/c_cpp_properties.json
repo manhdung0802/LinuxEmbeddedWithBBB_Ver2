@@ -6,36 +6,35 @@
                 "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/include",
                 "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/arch/arm/include",
                 "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/arch/arm/include/generated",
+                "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/include/generated",
                 "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/include/uapi",
                 "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/arch/arm/include/uapi",
-                "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/include/generated/uapi"
+                "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/include/generated/uapi",
+                "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/arch/arm/include/generated/uapi"
             ],
             "defines": [
                 "__KERNEL__",
                 "MODULE",
                 "__ARM__",
-                "CONFIG_ARM",
-                "KBUILD_MODNAME=\"pcd\""
+                "CONFIG_ARM"
+            ],
+            "forcedInclude": [
+                "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/include/linux/compiler_types.h",
+                "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/include/linux/kconfig.h"
             ],
             "compilerPath": "/home/as/x-tools/arm-bootlin-linux-gnueabihf/bin/arm-bootlin-linux-gnueabihf-gcc",
             "cStandard": "gnu11",
             "cppStandard": "gnu++17",
             "intelliSenseMode": "linux-gcc-arm",
+            "compileCommands": "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/compile_commands.json",
             "browse": {
                 "path": [
-                    "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/include",
-                    "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/arch/arm/include",
-                    "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/drivers/spi",
-                    "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/drivers/gpio",
-                    "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/drivers/base",
-                    "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux"
+                    "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/**",
+                    "${workspaceFolder}/**"
                 ],
                 "limitSymbolsToIncludedHeaders": false,
                 "databaseFilename": "${workspaceFolder}/.vscode/.vsc_cache.db"
             }
-        },
-        {
-            "name": "Do nothing"
         }
     ],
     "version": 4
