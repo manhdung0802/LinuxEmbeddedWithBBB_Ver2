@@ -1248,7 +1248,7 @@ MODULE_AUTHOR("William Shakespeare");
     + `platform_get_resource()`: lấy offset vật lý
     + `request_mem_region()`: giữ chỗ 1 vùng nhớ
     + `ioremap()`: tạo virtual mapping cho vùng nhớ đó
-- thì ta nên dùng `devm_ioremap_resoure()`
+- thì ta nên dùng `devm_ioremap_resoure()` hoặc `devm_platform_ioremap_resource()`
 ## Accessing MMIO devices: using accessor functions
 - phải cẩn thận khi truy cập các thanh ghi MMIO
     + MMIO có thể sắp xếp lỏng lẻo, ta cần bắt buộc thực thi đúng thứ tự
@@ -1263,7 +1263,7 @@ MODULE_AUTHOR("William Shakespeare");
 - Đôi khi việc CPU hoặc compiler thay đổi thứ tự thực thi không phải là vấn đề
 ## MMIO access functions
 - `read[b/w/l/q]` và `write[b/w/l/q]` để truy cập vào các little-endian devices, bao gồm memory barriers
-- `ioread[8/16/32/64]` và `iowriteơ8/16/32/64]` đơn giản để đọc ghi nhưng cũng làm việc với cổng I/O, bao gồm memory barrier
+- `ioread[8/16/32/64]` và `iowrite[8/16/32/64]` đơn giản để đọc ghi nhưng cũng làm việc với cổng I/O, bao gồm memory barrier
 - `ioread[8/16/32/64]be` và `iowrite[8/16/32/64]` dùng để truy cập big-endian devices, bao gồm memory barrier
 - `__raw_read[b/w/l/q]` và `__raw_write[b/w/l/q]` để truy cập raw, không có chuyển đổi định dạng sắp xếp byte, không có memory barrier
 - `read[b/w/l/q]_relaxed` và `write[b/w/l/q]_relaxed` để truy cập little-endian device, không bao gồm memory barrier
@@ -1280,3 +1280,64 @@ MODULE_AUTHOR("William Shakespeare");
     + `CONFIG_IO_STRICT_DEVMEM`: chỉ cho phép truy cập vào các vùng I/O memory đang rảnh, tức là vùng chưa có trong `/proc/iomem`
 
 ## Clocking and power management
+### Enabling hardware
+- Để có thể hoạt động, các khối hardware cần
+    + được cấp điện
+    + clock hoạt động
+        - các khối phần cứng được kết nối qua các hardware bus (AHB, APB, AXI,...), chúng yêu cầu input clock để phản hổi, nếu không thì 1 thao tác truy cập vào bus sẽ làm treo hệ thống
+        - khi 1 deivce expose 1 bus, thường sẽ có 1 clock thứ 2 mà tần số có thể được thay đổi
+    + các tín hiệu reset phải được release
+### Power handling
+- device trong và ngoài có thể được cấp nguồn bởi 1 bộ ổn áp
+    + `Shared refcounted resources`: đây là tài nguyên dùng chung, được quản lý bằng cơ thế tham chiếu, 1 đường nguồn ổn áp có thể cấp điện cho nhiều thiết bị, hệ điều hành đếm số lượng thiết bị đang dùng đường nguồn này
+    + `devm_regulator_get_enable()`
+- Internal device có thể là 1 phần của 1 power management
+    + Shared refcounted resources
+    + ví dụ như tất cả controller liên quan hiển thị, màn hình (LCD controller, HDMI phy, ...) được gom vào 1 power domain. Toàn bộ vùng này được cấp điện, ngắt điện cùng lúc
+### Clocks handling
+- 1 clock tree thường bắt đầu từ 1 thạch anh chính, cấp nguồn cho các bộ PLLs, cổng logic, bộ chia, và đi tới mọi device trong system
+    + `Shared refcounted resources`
+    + được quản lý bởi Common Clock Framework (CCF)
+    + API được mô tả trong `include/linux/clk.h`
+        - `devm_clk_get()`: lây tham chiếu tới nơi cung cấp clock
+        - `clk_prepare_enable()`: thông báo hệ thống khi nguồn clock cần phải chạy
+        - `clk_disable_unprepare()`: thông báo tới hệ thống khi nguồn clock không cần nữa
+        - `clk_get_rate()`: lấy tần số clock hiện tại (Hz)
+        - `clk_set_rate()`: set tần số hiện tại (Hz)
++ Cho phép khai báo các clock có sẵn và mối liên kết tới các devices trong DTB
++ Cung cấp biểu hiễn của clock tree bởi debugfs
++ được triển khai trong `drivers/clk/`
+### Diagram overview of the common clock framework
+- ![alt text](images/image-60.png)
+### Reset handling
+- mục đích là để đưa 1 device về trạng thái default
+- thường được thực hiện trong hàm `probe()`
+- việc reset đơn giản có thể là reset GPIOS
+- việc reset phức tạp cần được đăng ký trong reset control framework
+    + được chỉ định bởi thuộc tính `resets` trong DTB
+    + API:  
+        - `devm_reset_control_get()`
+        - `reset_control_assert()`
+        - `reset_control_deassert()`
+### Runtime power management
+- là 1 chức năng cấu hình trong menuconfig của Linux kernel
+- nó là subsystem có nhiệm vụ quản lý power trong hệ thống
+- trạng thái của device có thể thay đổi lúc runtime
+- khi được cấu hình, nó cho phép device rơi vào trạng thái nghỉ lúc runtime sau thời gian không hoạt động và thức dậy khi có phản hồi từ sự kiện hoặc được request
+- các hàm callback có thể được thêm vào driver: `runtime_suspend()`, `runtime_resume()`, `runtime_idle()` trong `struct dev_pm_ops` của `struct device_driver`
+- API trong `power/runtime_pm`:
+    + `pm_runtime_enable()`: enable runtime power management của device
+    + `pm_runtime_get_sync()`: tăng bộ đếm usage_count lên 1 và đánh thức clock thiết bị
+    + `pm_runtime_put()`: 
+    + `pm_runtime_disable()`
+- Runtime PM có thể dùng các cơ chế resets, clocks, power,...
+## Thực hành
+- UART
+    + xem uapi/linux/serial_reg.h để biết enum của các thanh ghi trong UART
+    + trạng thái nghỉ của chân RX là pullup
+    + devm_platform_ioremap_resource(pdev, 0): 0 là item đầu tiên của thuộc tính reg
+    + dùng `readl` `writel` trong <linux/io.h> để truy cập I/O memory 32bit
+    + cấu hình baudrate
+        - đọc thuộc tính từ device tree: `of_property_read_u32()`
+        - ghi 0x07 vào thanh ghi MDR1 để disable uart trước 
+        - cấu hình các thanh ghi khác -> xem bootlin/linux-kernel/linux-kernel-bbb-labs/modules/nfsroot/root/serial/serial.c
