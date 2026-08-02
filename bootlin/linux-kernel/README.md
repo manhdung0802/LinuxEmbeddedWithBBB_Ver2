@@ -53,6 +53,42 @@
 - [Memory Management](#memory-management)
   - [Physical and virtual memory](#physical-and-virtual-memory)
   - [Virtual memory organization](#virtual-memory-organization)
+  - [Physical/virtual memory mapping on 32-bit systems](#physicalvirtual-memory-mapping-on-32-bit-systems)
+  - [Physical/virtual memory mapping on 64-bit systems (4kiB-pages)](#physicalvirtual-memory-mapping-on-64-bit-systems-4kib-pages)
+  - [User space virtual address space](#user-space-virtual-address-space)
+  - [Userspace memory allocations](#userspace-memory-allocations)
+  - [Kernel memory allocators](#kernel-memory-allocators)
+  - [Page allocator](#page-allocator)
+  - [Page allocator API](#page-allocator-api)
+  - [Page allocator flags - gfp_t](#page-allocator-flags---gfp_t)
+  - [SLAB allocator - bộ cấp phát SLAB](#slab-allocator---bộ-cấp-phát-slab)
+  - [Different SLAB allocators](#different-slab-allocators)
+  - [kmalloc allocator](#kmalloc-allocator)
+  - [kmalloc API](#kmalloc-api)
+  - [devm_kmalloc functions](#devm_kmalloc-functions)
+  - [vmalloc allocator](#vmalloc-allocator)
+  - [Kernel memory debugging](#kernel-memory-debugging)
+- [I/O memory](#io-memory)
+  - [Memory-mapped I/O - MMIO](#memory-mapped-io---mmio)
+  - [Requesting I/O memory](#requesting-io-memory)
+  - [Mapping I/O memory in virtual memory](#mapping-io-memory-in-virtual-memory)
+  - [ioremap()](#ioremap)
+  - [Managed API](#managed-api)
+  - [Accessing MMIO devices: using accessor functions](#accessing-mmio-devices-using-accessor-functions)
+  - [Ordering](#ordering)
+  - [MMIO access functions](#mmio-access-functions)
+  - [MMIO access functions summary](#mmio-access-functions-summary)
+  - [/dev/mem](#devmem)
+  - [Clocking and power management](#clocking-and-power-management)
+  - [Thực hành](#thực-hành-4)
+- [The misc subsystem](#the-misc-subsystem)
+  - [Why a misc subsystem](#why-a-misc-subsystem)
+  - [Misc subsystem diagram](#misc-subsystem-diagram)
+  - [Misc subsystem API](#misc-subsystem-api)
+  - [Thực hành](#thực-hành-5)
+- [Processes, scheduling and interrupts](#processes-scheduling-and-interrupts)
+  - [Processes and scheduling](#processes-and-scheduling)
+  - [Sleeping](#sleeping)
 
 # Linux Kernel Introduction
 ## Linux kernel in the system
@@ -728,7 +764,7 @@ MODULE_AUTHOR("William Shakespeare");
 - Using additional hardware resources - cách mà kernel sử dụng tài nguyên phần cứng bổ sung
     + Device tree thường chứa nhiều thông tin. Nó chứa các con trỏ trỏ tới các khối phần cứng không thể discoverable được   
     + Cách mà driver lấy thông tin phần cứng
-        - Địa chỉ các thanh ghi I/O (để ghi/đọc dữ liệu phần cứng) và các đường tín hiệu ngắt (IRQ) được tự động chuyển đổi thành một mảng các `struct resource` gắn liền với `struct platform_device` đó. Driver chỉ cần gọi hàm chuẩn để lấy chúng ra.
+        - Địa chỉ các thanh ghi I/O (để ghi/đọc dữ liệu phần cứng) và các đường tín hiệu ngắt (IRQ - interrupt request) được tự động chuyển đổi thành một mảng các `struct resource` gắn liền với `struct platform_device` đó. Driver chỉ cần gọi hàm chuẩn để lấy chúng ra.
         - Thông tin liên qua tới subsystem nào sẽ được phân tích bởi subsystem đó
         - Các thuộc tính được lấy trực tiếp bởi device driver, thông qua các hàm lookup của device tree
     + tất cả cách này cho phép cùng 1 driver được sử dụng với nhiều devices có chức năng tương đương, nhưng khác address
@@ -1341,3 +1377,251 @@ MODULE_AUTHOR("William Shakespeare");
         - đọc thuộc tính từ device tree: `of_property_read_u32()`
         - ghi 0x07 vào thanh ghi MDR1 để disable uart trước 
         - cấu hình các thanh ghi khác -> xem bootlin/linux-kernel/linux-kernel-bbb-labs/modules/nfsroot/root/serial/serial.c
+
+# The misc subsystem
+## Why a misc subsystem
+- Kernel cung cấp rất nhiều loại framework bao phủ nhiều loại device: input, network, video, audio, ...
+    + Những framework này cho phép các chức năng common giữa các driver và cung cấp API đồng bộ cho user space app
+- Tuy nhiên, có thể có device không tương thích với bất kỳ framework nào, đặc biệt là các device trong FPGA hoặc deivce lạ
+- Driver cho những device này có thể được implement bằng việc tạo 1 raw character driver (`cdev_init()` và `cdev_add()`)
+- Nhưng misc subsystem làm việc tạo driver này dễ hơn
+    + misc subsystem là lớp phía trên APi của character driver
+    + device được xuất hiện trong `devtmpfs`, cái mà raw character driver không làm được
+- Nhiệm vụ của miscdevice là tạo device file trong `/dev`
+## Misc subsystem diagram
+- ![alt text](images/image-61.png)
+- misc là 1 subsystem trong số các subsystem của linux
+## Misc subsystem API
+- misc subsystem cung cấp 2 API chính để đăng ký và hủy đăng ký 1 misc device
+    + `int misc_register(struct miscdevice *misc)`
+    + `void misc_deregister(struct miscdevice *misc)`
+- Misc device được mô tả bởi `struct miscdevice`
+    ```c
+    struct miscdevice {
+        int minor;
+        const char *name;
+        const struct file_operations *fops;
+        struct list_head list;
+        struct device *parent;
+        struct device *this_device;
+        const char *nodename;
+        umode_t mode; 
+    };
+    ```
+    + minor: số minor cho device, hoặc dùng `MISC_DYNAMIC_MINOR` để linux tự cấp số cho, khỏi phải chọn
+    + name: tên của device mà được dùng để tạo device node trong `devtmpfs`
+    + fops: pointer tới `struct file_operations`
+    + parent: pointer tới `struct device` vật lý (platform device, i2c device)
+- Misc device thường là character device, và các operation hỗ trợ cho user space phụ thuộc vào kernel driver hỗ trợ các hàm: open, close, write, read, ioctl
+## Thực hành
+- `platform_get_resource`: lấy địa chỉ vật lý trong `reg` từ device tree
+    +  IORESOURCE_MEM: vùng bộ nhớ ánh xạ MMIO
+- `platform_set_drvdata`(struct platform_device, void *data)`: ký gửi data cho pdev nắm giữ hộ, không phải gán giá trị
+    + các subsystem khác cũng có hàm tương tư
+        - i2c_set_clientdata
+        - spi_set_drvdata
+        - usb_set_intfdata
+- số minor/major nằm ở `/sys/class/misc/serial-xxx/dev`
+- trong các hàm của struct file_operations, struct miscdevice có thể được lấy bằng file->private_data
+- `container_of(..)`: từ địa chỉ của 1 object con có thể tìm ra địa chỉ của struct cha
+    + hàm này chỉ thực hiện được nếu object con và struct cha có địa chỉ là liên tục trên RAM, nếu không thì sẽ crash
+    + để là liên tục trên bộ nhớ RAM, object của struct cần là biến thường, không phải con trỏ vì nếu object con là con trỏ, ta cần cấp phát thông qua demv_kzalloc nên hàm này sẽ cấp 1 vùng RAM bất kì cho object con, khiến con và cha không còn liên tục
+- nếu không dùng `container_of(..)`, có cách là 
+    + trong hàm probe() đã gọi platform_set_drvdata(pdev, serial)
+    + miscdevice sau đó có thể get bằng file->private_data
+    + get được dev từ miscdevice->parent
+    + dùng dev_get_drvdata(dev) để get ra được serial_dev
+    + đọc thêm các hàm platform_set_drvdata, platform_get_drvdata, dev_set_drvdata, dev_get_drvdata để hiểu luồng chạy
+- khi ký tự cuối của chuỗi là '\n' thì gọi lệnh write thêm 1 ký tự '\r' về đầu dòng
+- `cat > /dev/serial-<...> &`: dấu & chỉ định app này chạy ở nền
+- `owner` trong file_operations: quản lý tham chiếu của app mà đang mở device file này. Khi nào refernce count về 0, nghĩa là không còn app nào mở device file nữa thì mới gỡ được module. Reference count thể hiện qua `Used by` trong `lsmod`
+
+# Processes, scheduling and interrupts
+## Processes and scheduling
+### Process, thread?
+- không gian địa chỉ: vùng virtual memory được hệ điều hành cấp cho process
+- trong UNIX, 1 process được tạo bằng hàm `fork()` và bao gồm
+    + 1 không gian địa chỉ: chứa mã nguồn, data, stack, shared lib, ...
+    + 1 thread: là thực thể duy nhất mà bộ lập lịch biết
+- Các threads khác có thể được tạo trong 1 process đã tồn tại từ trước, sử dụng `pthread_create()`
+    + chúng chạy trong cùng 1 không gian địa chỉ như thread ban đầu của process 
+    + chúng thực thi các function được gán vào hàm `pthread_create()`
+### Process, thread: kernel point of view
+- trong kernel space, mỗi thread đang chạy được thể hiện trong qua `struct task_struct`
+- Từ góc nhìn của bộ lập lịch, thread đầu tiên và các thread được tạo thêm từ `pthread_create()` là như nhau
+- ![alt text](images/image-62.png)
+### Relation between execution mode, address space and context
+- operations: là các hoat động, thao tác xử lý
+- Khi nói về process và thread, những định nghĩa sau cần được phân biệt rõ:
+    + Mode: là mức độ đặc quyền cho phép thực hiện các operations
+        - Kernel mode: CPU có thể thực hiện bất kì lệnh nào mà được cho phép bởi kiến trúc chip, tập lệnh, truy cập memory 
+        - User mode: 1 số lệnh không được cho phép, 1 số vùng memory không được quyền truy cập
+    + Address space: Linux chia thành:
+        - Kernel space: chứa code cho kernel mode
+        - User space: chứa app thực thi
+    + Context: quyết định operations nào được cho phép, thường liên quan tới các hoạt động sleepability (ngủ/pending ...)
+        + với process context, hầu hết các operations được cho phép, đây là context cao nhất
+        + với Atomic context, là trạng thái mà CPU đang xử lý tác vụ quan trọng, không được ngắt quãng, nó bao gồm nhiều môi trường thực thi (interrupt context, softirq context, spinlock proteced regions, ...) nới mà việc sleep không được phép
+### A thread life 
+- thread tồn tại trong process, 1 process có thể có nhiều thread
+- ![alt text](images/image-63.png)
+- Thread được tạo bởi fork() hoặc pthread_create() rồi chuyển vào danh sách chờ
+- Thread đã khởi tạo xong tài nguyên, đang chờ bộ lập lịch cấp CPU để chạy
+- Nếu bộ lập lịch cấp CPU, thread đó sẽ thực sự chạy
+- Nếu thread bị tranh bởi task có độ ưu tiên cao hơn, nó sẽ về trạng thái chờ (Ready)
+- Thread có thể vào trạng thái ngủ để chờ event:
+    + TASK_INTERRUPTIBLE: ngủ và có thể bị đánh thức bởi event
+    + TASK_UNINTERRUPTIBLE: ngủ và không bị thể đánh thức bởi event
+    + TASK_KILLABLE: ngủ nhưng có thể bị ép chết bởi SIGKILL
+    + nếu thread được đánh thức thì nó về trạng thái Ready
+- EXIT_ZOMBIE:
+    + thread đã bị hủy nhưng tài nguyên vẫn còn
+    + có chờ cho process cha xác nhận kết thúc thì tài nguyên mới được giải phóng
+### Execution of system calls
+- ![alt text](images/image-64.png)
+- 1 luồng xuất phát từ user space có thể gọi các system call với kernel
+    + sau đó luồng chuyển mode về kernel mode và tiếp tục thực hiện
+    + kernel mode làm xong thì thread chuyển về user mode và tiếp tục
+- trong quá trình thực hiện, thread có thể bị thread khác ưu tiên hơn tranh chấp
+## Sleeping
+### Sleeping
+- ![alt text](images/image-65.png)
+- Việc sleep là cần thiết khi 1 thread ở user space hoặc kernelspace đang chờ data
+### How to sleep with a wait queue
+- ta cần tạo 1 wait queue để chứa các thread đang chờ event
+- Cấp bộ nhớ động cho queue
+    + Thông thường, mỗi device có 1 queue riêng do driver quản lý
+    + Nhúng queue đó vào trong data structure của device
+    + Ví dụ:
+        ```c
+        struct orion_mdio_dev {
+            ...
+            wait_queue_head_t smi_busy_wait;
+        };
+        struct orion_mdio_dev *dev;
+            ...
+            init_waitqueue_head(&dev->smi_busy_wait);
+        ```
+- Cấp bộ nhớ tĩnh cho queue
+    + dùng biến global khi driver đó chỉ điều khiển duy nhất 1 device
+    + `DECLARE_WAIT_QUEUE_HEAD(module_queue);`
+- Các cách để sleep 1 thread:
+    + `void wait_event(queue, condition);`: ngủ cho đến khi queue được đánh thức và tham số `condition` là true. Chú ý rằng 1 khi đã ngủ, thread đang ngủ không thể bị ngắt
+    + `int wait_event_killable(queue, condition);`: Có thể bị ngắt, nhưng chỉ ngắt bởi fatal signal (SIGKILL). 
+        - Return về `-ERESTARTSYS` nếu bị ngắt. 
+        - Return 0 nếu thức dậy bình thường
+    + `int wait_event_interruptible(queue, condition);`: phổ biến nhất
+        - có thể bị ngắt bởi bất kỳ signal nào
+        - Return `-ERESTARTSYS` nếu bị ngắt
+    + `int wait_event_timeout(queue, condition, timeout);`
+        - ngừng sleep khi thread bị đánh thức hoặc timeout
+        - Return 0 nếu timer kết thúc
+        - Return khác 0 nếu tham số `condition` là true
+    + `int wait_event_interruptible_timeout(queue, condition, timeout);`
+        - tương tư như trên và có thể bị ngắt
+        - Return 0 nếu timeout
+        - Return `-ERESTARTSYS` nếu bị ngắt
+        - Return > 0 nếu `condition` thỏa mãn
+    + Example
+        ```c
+        sig = wait_event_interruptible(ibmvtpm->wq, !ibmvtpm->tpm_processing_cmd);
+        if (sig)
+            return -EINTR;
+        ```
+### Waking up
+- Thường thread được wakeup bởi interrupt khi data của thread đang ngủ trở nên khả dụng
+- `wake_up(&queue)`: đánh thức tất cả thread trong wait queue
+- `wake_up_interruptible(&queue)`: đánh thức tất cả thread đang chờ ở trạng thái ngủ trong queue được chỉ định
+### Exclusive vs non-exclusive thread (độc quyên vs không độc quyền)
+- Exclusive sleep: hữu ích để tránh đánh thức nhiều thread khi chỉ có 1 thread có thể xử lý event, và thead đó không ảnh hưởng đến thread khác
+    + `wait_event_interruptible_exclusive()`: đưa 1 thread vào hàng chờ exclusive
+    + `wake_up()`/`wake_up_interruptible()`: đánh thức tất cả non-exclusive thread và chỉ 1 exclusive thread
+    + `wake_up_all()`/`wake_up_interruptible_all()`: đánh thức tất cả non-exclusive và tất cả exclusive thread
+- Non-exclusive sleep: có ích khi thread đó ảnh hưởng tới/có tác dụng nhiều thread khác 
+    + `wait_event_interruptible()`: đưa 1 thread vào hàng chờ non-exclusive
+### Sleeping and waking up - Implementation
+- ![alt text](images/image-66.png)
+- Khi 1 thread vào trạng thái ngủ, bộ lập lịch (schedule) sẽ bỏ qua việc kiểm tra điều kiện thỏa mãn hay chưa để tiết kiệm cpu nhờ vào 2 hàm sau:
+    - `wait_event(queue, condition)`: đưa thread vào trạng thái `TASK_UNINTERRUPTIBLE`
+    - `wake_up(&queue)`: tất cả thread trong queue được đánh thức, sau đó bộ lập lịch kiểm lại condition xem có thỏa mãn không, nếu không thỏa thì thread ngủ trở lại
+- Nếu không implement để bỏ qua việc kiểm tra condition liên tục của thead, có thể process sẽ hết tài nguyên vì phải check condition liên tục
+### How to sleep with completions - Làm thế nào để sleep sau khi đã hoàn thành công việc
+- `wait_for_completion(struct completion *completion)`: đưa thread vào trạng thái wait state, dùng khi không có điều kiện cụ thể nào cần được thực hiện khi wake-up
+    + tận dụng được năng lượng trong lúc chờ
+    + đơn giản hóa việc sử dụng
+    + Hiệu quả cao khi dùng các bộ lập lịch cấp thấp
+- Sau khi hoàn thành công việc, thread cần báo cho các thread khác biết, vì vậy cần khai báo 1 completion struct cho việc hoàn thành này:
+    ```c
+    struct completion {
+        unsigned int done;
+        struct swait_queue_head wait;
+    };
+    ```
+    + `DECLARE_COMPLETION(completion)`: khai báo và khởi tạo struct completion này
+    + `init_completion(&object->completion)`: kháo cấp phát động
+    + struct này sau khi khai báo thì sẵn sàng để consumer và provider sử dụng ngay
+- Full list API: `include/linux/completion.h`
+- Tài liệu: `https://www.kernel.org/doc/html/latest/scheduler/completion.html`
+- Đưa 1 thread vào trạng thái wait state
+    + `void wait_for_completion(struct completion *done)`
+    + `wait_for_completion_timeout(),`
+    + `wait_for_completion_interruptible() / _timeout()`,
+    + `wait_for_completion_killable() / _timeout()`, etc
+- Đánh thức consumer (thread cần kết quả từ provider) với
+    + `void complete(struct completion *done)`
+    + 1 lần gọi complete() thì đánh thức 1 thread đang chờ completion object này
+    + có thể gọi complete() nhiều lần
+    + `void complete_all(struct completion *done)`: đánh thức tất cả thread đang chờ completion object này
+- Reset counter
+    + `void reinit_completion(struct completion *done)`
+    + reset số lượng tín hiệu hoàn thành đang chờ hoặc chưa xử lý, tức là reset biến `done` trong struct completion
+    + tái sử dụng completion trong chu kỳ mới
+    + Chỉ gọi `reinit_completion` 1 lần, nếu gọi 2 lần có thể làm rối loạn các thread đang chờ xử lý
+- Mô tả
+    + ![alt text](images/image-67.png)
+### Blocking
+- Là quá trình block thread
+- có thể dùng vòng loop hoặc hardware timer
+    + `udelay()`: tiêu tốn vào cycle CPU để tiết kiệm 1 số lần switch context giữa các thread, phù hợp cho thời gian <= 10us hoặc tình huống atomic (là tình huống mà thread đang thực thi không được phép ngắt hoặc ngủ)
+    + `usleep()/usleep_range()/msleep()`: đưa thread vào ngủ trong 1 khoảng thời gian micro giây hoặc mili giây, không dùng cho tình huống atomic ở trên
+    + `fsleep()`: tự chọn chức năng delay phù hợp dựa vào thời gian delay mà developer yêu cầu
+### Waiting when hardware is involved
+- chờ đợi phần cứng phản hồi
+- Khi phần cứng tham gia vào quá trình chờ đợi nhưng không có ngắt hoặc chuyển đổi context quá tốn thời gian
+- Các hàm polling I/O có thể được dùng để theo dõi phần cứng
+    + list hàm `include/linux/iopoll.h`
+    + `int read[bwlq]_poll_timeout_[atomic](addr, val, cond, delay_us, timeout_us)` - đây là cấu trúc tổng quát, bwlq có thể được chuyển đổi theo tên hàm
+        - b (byte): Đọc thanh ghi 8-bit (readb_poll_timeout)
+        - w (word): Đọc thanh ghi 16-bit (readw_poll_timeout)
+        - l (long): Đọc thanh ghi 32-bit (readl_poll_timeout)
+        - q (quad): Đọc thanh ghi 64-bit (readq_poll_timeout)
+        - addr: địa chỉ thanh ghi phần cứng cần kiểm tra
+        - val: biến để lưu dữ liệu từ addr
+        - cond: điều kiện để dừng polling
+        - delay_us: chu kỳ polling
+        - timeout_us: nếu quá thời gian này mà `cond` vẫn không thỏa mãn thì kết thúc polling, `return -ETIMEDOUT`
+- Tránh viết hàm lặp như while để tránh treo
+
+## Interrupt Management
+### Registering an interrupt handler
+- API được khuyến nghị:
+    + `int devm_request_irq(struct device *dev, unsigned int irq, irq_handler_t handler, unsigned long irq_flags, const char *devname void *dev_id);`
+    + `dev`: tự động giải phóng tại thời điểm release device hoặc module
+    + `irq`: kênh IRQ được yêu cầu. Với platform device, dùng `platform_get_irq()` để lấy interrupt number
+    + `handler`: con trỏ trỏ tới IRQ handler function
+    + `irq_flags`: option masks, dưới đây là các giá trị thường dùng, có thể kết hợp các giá trị bằng toán tử or
+        - `IRQF_SHARED`: interrupt channel có thể được chia sẻ giữa các device
+            + khi 1 interrupt được nhận, tất cả interrupt handler được đăng ký trong cùng 1 đường ngắt sẽ được gọi
+            + điều này yêu cầu 1 thanh ghi status báo trạng thái IRQ - interrupt request được phát đi hay không
+        - `IRQF_ONESHOT`: được dùng bởi threaded interrupt, giữ đường ngắt disable cho tới khi thread function được chạy
+    + `devname`: tên được đăng ký (trong /proc/interrupts). Với platform device, dùng `pdev->name` để phân biệt các device được quản lý bởi cùng 1 driver 
+    + `dev_id`: là con trỏ mở, thường trỏ tới struct data của từng device. Con trỏ này không thể NULL vì nó được dùng làm định danh cho việc giải phóng ngắt. Khi giải phóng ngắt, struct này được ngắt trả lại cho các xử lý khác
+### Interrupt handler constraints - ràng buộc của hàm xử lý ngắt
+- Không có gì đảm bảo rằng hệ thống sẽ ở trong không gian địa chỉ nào khi ngắt xảy ra, vì vậy không thể truyền nhận data từ user space, không dùng các hàm copy_to_user, copy_from_user trong hàm xử lý ngắt
+    + Tức là khi ngắt xảy ra, hệ thống có thể đang xử lý tác vụ khác, do đó hệ thống không thể biết mình đang đứng ở không gian bộ nhớ của tiến trình nào
+    + Vì không biết ở tiến trình nào nên việc copy data giữa kernel space và user space trong hàm xử lý ngắt là nguy hiểm, gây panic
+- Việc thực hiện hàm xử lý ngắt được quản lý bởi CPU, không phải bộ lập lịch. Các hàm xử lý ngắt không thể thực hiện các hành độ mà đưa thread vào sleep, vì sẽ không có cơ chế nào có thể khôi phục việc thực thi của chúng. CỤ thể, ta cần cấp phát bộ nhớ với `GFP_ATOMIC` để kernel cấp ngay lập tức vùng ram, nếu hết ram thì báo lỗi luôn chứ không bắt hệ thống chờ
+    + vì hàm xử lý ngắt được thực thi bởi CPU, nên nếu cho nó đi ngủ, CPU sẽ không có cơ chế đánh thức hàm đó như bộ lập lịch làm, dẫn đến treo hệ thống
+    + các hàm gây ngủ là: msleep, fsleep, mutex_lock, down_semaphore, ...
+- Hàm xử lý ngắt chạy trong điều kiện tất cả các ngắt khác bị disable trên local CPU. Vì vậy, chúng phải hoàn thành công việc thật nhanh để tránh block ngắt khác quá lâu
+    + Tức là khi có 1 ngắt thực hiện, CPU sẽ khóa các ngắt khác, đưa các ngắt khác vào queue
