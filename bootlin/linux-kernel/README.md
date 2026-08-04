@@ -1603,6 +1603,9 @@ MODULE_AUTHOR("William Shakespeare");
 - Tránh viết hàm lặp như while để tránh treo
 
 ## Interrupt Management
+- Ngắt được bật: là khi CPU đang xử lý các app như thường, tức là trong process context, các đường ngắt đang chờ ngắt
+- Ngắt bị tắt/vô hiệu hóa: là khi CPU đang xử lý ngắt, tất cả các process đều bị dừng
+- **Chỉ có process context thì thread, các handler, ... mới được sleep**
 ### Registering an interrupt handler
 - API được khuyến nghị:
     + `int devm_request_irq(struct device *dev, unsigned int irq, irq_handler_t handler, unsigned long irq_flags, const char *devname void *dev_id);`
@@ -1625,3 +1628,87 @@ MODULE_AUTHOR("William Shakespeare");
     + các hàm gây ngủ là: msleep, fsleep, mutex_lock, down_semaphore, ...
 - Hàm xử lý ngắt chạy trong điều kiện tất cả các ngắt khác bị disable trên local CPU. Vì vậy, chúng phải hoàn thành công việc thật nhanh để tránh block ngắt khác quá lâu
     + Tức là khi có 1 ngắt thực hiện, CPU sẽ khóa các ngắt khác, đưa các ngắt khác vào queue
+### Ví dụ về cat /proc/interrupts trên Raspi 2
+- Cột đầu tiên là số ngắt nhưng nó là virtual number khi dùng với Device tree
+- ![alt text](images/image-68.png)
+- Để nó hiện được số physical trong `/sys/kernel/debug/irq/irqs/<nr>`, set thuộc tính `CONFIG_GENERIC_IRQ_DEBUGFS=y`
+### Interrupt handler prototype
+- `irqreturn_t foo_interrupt(int irq, void *dev_id)`
+    + `irq`: số ngắt
+    + `dev_id`: con trỏ trỏ tới device mà được pass vào `devm_request_irq()`
+    + `Return IRQ_HANDLED`: ngắt đã được nhận diện và xử lý
+    + `Return IRQ_NONE`: được kernel dùng để phát hiện các ngắt giả mạo, và vô hiệu hóa đường ngắt nếu không có interrupt handler nào xử lý ngắt đó
+    + `Return IRQ_WAKE_THREAD`: các handler request (các yêu cầu xử lý) đánh thức các handler thread (các luồng xử lý)
+### Typical interrupt handler's job - công việc thông thường của các trình xử lý ngắt
+- Các công việc của trình xử lý ngắt là:
+    + xác nhận ngắt tới device mỗi trình xử lý ngắt chạy xong, nếu không thì sẽ không có ngắt nào được tạo ra nữa, ngắt sẽ bị lặp đi lặp lại
+    + đọc ghi dữ liệu từ device
+    + đánh thức bất kì process nào đang chờ những data này, thường là trên 1 danh sách chờ của từng device: `wake_up_interruptible(&device_queue)`
+### Top half and bottom half processing
+- Việc chia quá trình xử lý của interrupt handle thành 2 phần có thể cần thiết: top half và bottom half
+    + Vì sao cần chia thành 2 phần:
+        - Các trình xử lý Hard IRQ (ngắt phần cứng) thực thi trong điều kiện tất cả ngắt trên CPU cục bộ bị disabled
+            + Không có cơ chế lồng ngắt (ngắt trong ngắt), các IRQ có độ ưu tiên cao hơn sẽ bị trì hoãn
+        - Cần block/sleep
+- Top half:
+    + đây là trình xử lý ngắt thực sự, nó nên được hoàn thành nhanh nhất có thể vì tất cả ngắt khác bị disable để chờ nó. Nó lấy data từ device và nếu quá trình hậu xử lý (post-processing) tốn thời gian, bộ lập lịch sẽ chuyển tới bottom half để xử lý
+- Bottom half:
+    + là cơ chế cho phép trì hoãn việc xử lý của ngắt
+        + trong Linux, nó được implement như là softirq, thread handle và workqueue
+        + viết tắt "bh" nghĩa là "softirq" trong 1 số tài liệu cũ
+### Softirqs
+- Softirq handler là các callback xử lý khi tất cả interrupt handler đã hoàn thành, trước khi kernel tiếp cục qúa trình lập lịch
+    + chúng xử lý trong điều kiện tất cả các ngắt đều được bật (là lúc mà CPU sẵn sàng nhận ngắt, không bị block bởi quá trình xử lý ngắt Top half nào cả)
+    + chúng chạy trước khi bộ lập lịch giành lại quyển kiểm soát (tức là sau khi Top half vừa mới xong), nên không được sleep
+    + Trình xử lý softirq có thể chạy đồng thời trên nhiều CPU
+- Số lượng softirq là cố định, softirq không được dùng bởi driver nhưng có thể được dùng bởi các kernel subsystem (network, ...). Danh sách của softirq ở `include/linux/interrupt.h`
+- Để tránh làm cạn kiệt hệ thống, softirq sẽ bị giới hạn:
+    + softirq được thực thi liên tiếp 10 lần trong tối đa 2ms
+    + sau thời gian này, các callback của softirq sẽ được chạy trong process context, nghĩa là chạy như xử lý logic bình thường được phân phối bởi bộ lập lịch. Các callback đang dang dở này được chuyển vào luồng kernel `ksoftirqd/N` (N là số thứ tự của cpu). Luồng `ksoftirqd/N` được điều phối bởi bộ lập lịch và cũng cần xếp hàng thực thi như các thread khác
+### Softirq execution flow
+- ![alt text](images/image-69.png)
+- Độ ưu tiên: IRQ > Softirq > Process
+### Threaded interrupts
+- Ta có thể kết hợp 1 threaded handler với 1 hard IRQ handler
+    + Hard IRQ handler sẽ kích hoạt nó bằng việc trả về `IRQ_WAKE_THREAD`
+    + Threaded handler sẽ được xử lý trong 1 thread nằm trong process context
+- Đường ngắt có thể bị vô hiệu hóa nếu việc đăng ký handler dùng cờ `IRQF_ONESHOT`
+- Sleep/block được cho phép trong threaded handler
+    + Độ ưu tiên của luồng `irq/<nb>-<name>` có thể được điều chỉnh
+- Được dùng nhiều bởi cơ chế `PREEMPT_RT`
+    ```c
+    int devm_request_threaded_irq(struct device *dev, unsigned int irq,
+                                irq_handler_t handler, irq_handler_t thread_fn,
+                                unsigned long flags, const char *name,
+                                void *dev);
+    ```
+    + `handler`: hard IRQ handler, CPU gọi để thực thi ngay, nằm ở Top half
+    + `thread_fn`: function bottom half, được xử lý sau top half
+### Workqueues
+- Workqueues là cơ chế chung dùng để trì hoãn công việc, không chỉ giới hạn trong việc xử lý ngắt
+- Workqueue thường dùng cho các công việc chạy nền, để CPU không bị block
+- Các function được đăng ký để chạy trong workqueue được gọi là `works`:
+    + Chúng được tạo bằng macro `INIT_WORK()`
+    + Khi được lên lịch, chúng trở thành các thread chạy trong process context, tức là các ngắt được bật, cho phép sleep
+    + Works có thể bị đưa vào 2 loại hàng đợi:
+        - hàng đợi default workqueue: `schedule_work()`
+        - hàng đợi được cấp phát bởi subsystem hoặc driver: `alloc_workqueue()`
+- API workqueue: `include/linux/workqueue.h`
+- Example:
+    ```c
+    INIT_WORK(&work_data->work, atmel_i2c_work_handler);
+    schedule_work(&work_data->work);
+    ```
+### Interrupt and deferred mechanisms execution constraints summary
+- ![alt text](images/image-70.png)
+### Interrupt management summary
+- Device driver
+    + trong probe(), mỗi device cần dùng `devm_request_irq()` để đăng ký 1 interrupt handler cho kênh ngắt của device
+- Interrupt handler
+    + được gọi khi ngắt được phát đi
+    + Phản hồi ngắt
+    + trigger bottom half nếu cần xử lý data nhiều
+    + đánh thức các process đang chờ data trên hàng đợi của mỗi device
+- Device driver
+    + trong hàm remove(), với mỗi device, interrupt handler được tự động hủy đăng ký
+    
