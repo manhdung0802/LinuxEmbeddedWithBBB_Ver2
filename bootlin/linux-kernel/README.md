@@ -1711,4 +1711,6 @@ MODULE_AUTHOR("William Shakespeare");
     + đánh thức các process đang chờ data trên hàng đợi của mỗi device
 - Device driver
     + trong hàm remove(), với mỗi device, interrupt handler được tự động hủy đăng ký
-    
+### Thực hành
+- `irq = platform_get_irq(pdev, 0);`: lấy số ngắt physical ở index 0
+- `devm_request_irq(..)`: đăng ký 1 interurpt handler với irq trên
