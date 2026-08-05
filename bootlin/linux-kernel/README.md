@@ -1538,7 +1538,7 @@ MODULE_AUTHOR("William Shakespeare");
     + `wake_up()`/`wake_up_interruptible()`: đánh thức tất cả non-exclusive thread và chỉ 1 exclusive thread
     + `wake_up_all()`/`wake_up_interruptible_all()`: đánh thức tất cả non-exclusive và tất cả exclusive thread
 - Non-exclusive sleep: có ích khi thread đó ảnh hưởng tới/có tác dụng nhiều thread khác 
-    + `wait_event_interruptible()`: đưa 1 thread vào hàng chờ non-exclusive
+    + `wait_event_interruptible()`: đưa 1 thread vào hàng chờ wait queue non-exclusive
 ### Sleeping and waking up - Implementation
 - ![alt text](images/image-66.png)
 - Khi 1 thread vào trạng thái ngủ, bộ lập lịch (schedule) sẽ bỏ qua việc kiểm tra điều kiện thỏa mãn hay chưa để tiết kiệm cpu nhờ vào 2 hàm sau:
@@ -1714,3 +1714,16 @@ MODULE_AUTHOR("William Shakespeare");
 ### Thực hành
 - `irq = platform_get_irq(pdev, 0);`: lấy số ngắt physical ở index 0
 - `devm_request_irq(..)`: đăng ký 1 interurpt handler với irq trên
+- trong hàm interrupt handlder đã đăng ký cần kiểm tra đúng device mình cần xử lý ngắt không
+- Phần cứng liên tục lặp lại ngắt cho tới khi mình xác nhận ngắt. Nếu không xác nhận ngắt thì interrupt handler sẽ lặp liên tục, việc lặp lại ngắt liên tục này gọi là `interrupt flood`
+- Linux sẽ chỉ gửi sự kiện ngắt tới đúng handler, và mong rằng handler sẽ phản hổi lại để xác nhận ngắt
+- Đối với UART controller, việc xác nhận ngắt bằng cách đọc giá trị thanh ghi `UART_RX` mà nó đang giữ ký tự tiếp theo được nhận.
+- Các cách để xác nhận ngắt:
+    + ghi vào thanh ghi tương thích
+    + đọc data từ 1 thanh ghi
+- Để sleep process trong khi chờ đúng condition, trong struct device tạo thêm wait_queue_head_t wait. 
+    + cấp phát wait trong probe(): `init_waitqueue_head(&serial->wait)`
+    + khi nhận được ngắt, gọi `wake_up(&serial->wait);` trong interrupt handler
+    + hàm `wait_event_interruptible` như 1 chốt chặn bắt process phải ngủ tới khi thỏa mãn điều kiện, nó sẽ đưa process mà gọi hàm chứa `wait_event_interruptible` vào danh sách chờ wait queue
+
+# Concurrent Access to Resources: Locking

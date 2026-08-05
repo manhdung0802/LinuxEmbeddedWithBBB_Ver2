@@ -33,8 +33,11 @@
                     "${workspaceFolder}/**"
                 ],
                 "limitSymbolsToIncludedHeaders": false,
-                "databaseFilename": "${workspaceFolder}/.vscode/.vsc_cache.db"
+                // "databaseFilename": "${workspaceFolder}/.vscode/.vsc_cache.db"
             }
+        },
+        {
+            "name": "do nothing"
         }
     ],
     "version": 4
