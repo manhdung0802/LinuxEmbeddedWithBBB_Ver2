@@ -1603,9 +1603,10 @@ MODULE_AUTHOR("William Shakespeare");
 - Tránh viết hàm lặp như while để tránh treo
 
 ## Interrupt Management
+- **process context**: ngữ cảnh tiến trình, hệ điều hành quản lý chung process và thread trong context này
 - Ngắt được bật: là khi CPU đang xử lý các app như thường, tức là trong process context, các đường ngắt đang chờ ngắt
 - Ngắt bị tắt/vô hiệu hóa: là khi CPU đang xử lý ngắt, tất cả các process đều bị dừng
-- **Chỉ có process context thì thread, các handler, ... mới được sleep**
+- **Chỉ có process context thì thread, process, các handler, ... mới được sleep**
 ### Registering an interrupt handler
 - API được khuyến nghị:
     + `int devm_request_irq(struct device *dev, unsigned int irq, irq_handler_t handler, unsigned long irq_flags, const char *devname void *dev_id);`
@@ -1727,3 +1728,138 @@ MODULE_AUTHOR("William Shakespeare");
     + hàm `wait_event_interruptible` như 1 chốt chặn bắt process phải ngủ tới khi thỏa mãn điều kiện, nó sẽ đưa process mà gọi hàm chứa `wait_event_interruptible` vào danh sách chờ wait queue
 
 # Concurrent Access to Resources: Locking
+## Sources of concurrency issues
+- Về xử lý đồng thời nhiều tác vụ, kernel cũng chịu các ràng buộc như 1 chương trình bình thường
+- Việc cần phải xử lý đồng thời nhiều tác vụ có thể do:
+    + Interrupt: gián đoạn luồng hiện tại để xử lý interrupt handler. Các trình xử lý có thể dùng chung nhiều tài nguyên
+    + Sự chiếm quyền điều khiển của kernel: kernel có thể chuyển việc thực thi từ thread này qua thread khác, chúng có thể dùng chung tài nguyên
+    + Multiprocessing: code được thực thi trên nhiều bộ xử lý, chúng có thể dùng chung tài nguyên
+- Giải pháp:
+    + Không dùng chung dữ liệu giữa các thread, process để tránh dữ liệu bị sửa đổi lung tung
+    + Dùng cơ chế lock để bảo vệ tài nguyên dùng chung
+## Concurrency protection with locks
+- ![alt text](images/image-71.png)
+## Linux mutexes mutex = mutual exclusion
+- Cơ chế lock đơn giản của kernel là binary lock (lock nhị phân). Ngoài ra còn có semaphore nhưng rất ít được dùng
+- 1 process yêu cầu lock sẽ bị block lại nếu như lock đã được nắm giữ. Vì vậy mutex chỉ có thể được dùng trong bối cảnh mà việc sleep của process/thread được cho phép. Vì nếu không sleep được thì process yêu cầu lock sẽ không thể bị block được khi yêu cầu khóa
+- `#include <linux/mutex.h>`
+- Khởi tạo mutex static
+    + `DEFINE_MUTEX(name)`
+- Khởi tạo mutex động (thường dùng hơn)
+    + `void mutex_init(struct mutex *lock)`
+## Locking and unlocking mutexes
+- **Khi tới đoạn code lấy lock, nếu dùng lock và lấy không được thì thread/process sẽ sleep**
+- `void mutex_lock(struct mutex *lock)`
+    + cố gắng lock mutext, nếu không lock được thì sleep
+    + khi process bị đưa vào sleep, nó không thể bị ngắt vì nó được đặt ở trạng thái `TASK_UNINTERRUPTIBLE`. Vì vậy nếu xảy ra deadlock, process sẽ bị treo và không thể kill được
+- `int mutex_lock_killable(struct mutex *lock)`
+    + tương tự nhưng có thể bị ngắt bởi lệnh SIGKILL, process được đặt ở trạng thái `TASK_INTERRUPTIBLE`
+    + Nếu bị ngắt, return về số khác 0 và gỡ bỏ lock
+- `int mutex_lock_interruptible(struct mutex *lock)`
+    + tương tự nhưng có thể bị ngắt bởi bất kì signal nào
+- `void mutex_unlock(struct mutex *lock)`
+    + release lock, cần release ngay khi thoát khỏi section
+## Spinlocks - 1 loại lock đặc biệt
+- Là lock dùng cho đoạn code không được sleep (ví dụ interrupt handler) hoặc đoạn code không muốn sleep (ví dụ critical section). Không được gọi các hàm gây sleep trong này
+- ![alt text](images/image-72.png)
+- Ban đầu được thiết kế cho hệ thống đa xử lý
+- Spinlock không bao giờ sleep và tiếp tục quay vòng kiểm tra cho tới khi lock khả dụng. 
+- **Khi tới đoạn code lấy lock, nếu dùng spinlock và lấy không được thì thread/process vẫn tốn cpu để chờ lấy lock**
+- các critical section mà được bảo vệ bởi 1 spinlock thì không được sleep
+- Ưu thế so với lock mutex:
+    + có thể dùng trong trường hợp có interrupt
+    + nhanh hơn vì không mất thời gian cho quá trình context switch như lock mutex
+## The spinlock API
+- Khởi tạo spinlock
+    + static: `DEFINE_SPINLOCL(lock)
+    + dynamic (cho mỗi device): `void spin_lock_init(spintlock_t *lock)`
+- Lấy lock: 
+    + `void spin_lock(spinlock_t *lock)`
+- Release lock:
+    + `void spin_unlock(spinlock_t *lock)`
+## Spinlocks vs. preemption/migration
+- **kernel preemption**: cơ chế chiếm quyền điều khiển
+    + khi thread 1 đang thực hiện, nếu có thread 2 ưu tiên cao hơn thì cơ chế này sẽ đưa thread 1 vào sleep và đẩy thread 2 lên thực hiện
+- **kernel migration**: cơ chê đưa thread/process đang chạy sang 1 cpu khác
+- ![alt text](images/image-73.png)
+    + Khi 1 critical section đang nắm spinlock, nếu có thread khác cố gắng lấy lock, do cơ chế preemption, thread 2 sẽ được đẩy lên thực hiện (vì spinlock không làm thread/process sleep), nhưng có thể sẽ loop trong vòng lặp vì lock đang được nắm bởi critial section -> gọi là deadlock
+- Nếu đã vào deadlock thì cơ chế kernel preemption bị vô hiệu hóa
+- Khi 1 thread/process đang chiếm spinlock trên CPU 0 thì nó không được chuyển qua CPU X nào khác, phải xử lý xong thật nhanh. Vì vậy kernel sẽ vô hiệu quá cơ chế preemption và migration, Preemption bị vô hiệu hóa thì cũng vô hiệu hóa luôn migration
+## Spinlocks vs. interrupts
+- ![alt text](images/image-74.png)
+- ta cũng cần tránh deadlock khi nếu có 1 interrupt thì interrupt cũng có thể muốn lấy lock, nếu gặp critical section đang khóa lock bằng spinlock thì interrupt handler sẽ loop mãi để cố gắng lấy. Nhưng do interrupt có độ ưu tiên cao hơn nên critical section phải nhường, dẫn tới spinlock không được critial section release
+- Để bảo vệ khỏi deadlock khi dùng chung spinlock và interrupt trong process context và interrupt context, cần dùng API:
+    + `void spin_lock_irqsave(spinlock_t *lock, unsigned long flags)`
+        - lưu lại trạng thái ngắt, vô hiệu hóa ngắt IRQs để không nhận được ngắt nào trong quá trình đang xử lý critial section đang nắm spinlock. 
+    + `void spin_unlock_irqrestore(spinlock_t *lock, unsigned long flags)`
+        - giải phóng spinlock
+        - enable lại IRQs trong CPU
+## Spinlock API
+- `void spin_lock_bh(spinlock_t *lock)`: chiếm lock và vô hiệu hóa softirq
+- `void spin_unlock_bh(spinlock_t *lock)`: nhả lock và bật lại softirq
+- Ý nghĩa
+    + vô hiệu hóa ngắt mềm, không vô hiệu hóa ngắt phần cứng. Do đó các ngắt từ phần cứng vẫn có thể được kích hoạt
+    + hiệu quả khi muốn bảo vệ data khi process context và trong bottom half (softirq) cùng truy cập vào được
+    + không cần vô hiệu quá ngắt phần cứng
+- Linux kernel còn cung cấp reader/writer spinlock để cho phép nhiều thread/process cùng đọc dữ liệu đồng thời mà không cần chờ nhau, vì chỉ đọc thì không làm thay đổi dữ liệu
+## Spinlock example
+- ![alt text](images/image-75.png)
+```c
+static unsigned int ulite_tx_empty(struct uart_port *port) {
+    unsigned long flags;
+    spin_lock_irqsave(&port->lock, flags);
+    /* Do something */
+    spin_unlock_irqrestore(&port->lock, flags);
+}
+```
+## More deadlock situations
+- Gọi 1 function mà cố lấy cùng 1 lock trong function khác
+    + function 1 -> get lock 1 -> call function 2 -> wait lock 1 ->deadlock
+- Get lock sai thứ tự
+    + function 1 -> get lock 1 -> get lock 2
+    + function 2 -> get lock 2 -> get lock 1
+- Giải pháp:
+    + không gọi function mà get cùng 1 lock
+    + nếu dùng nhiều lock thì luôn get lock theo cùng 1 thứ tự
+## Debugging locking
+- `CONFIG_PROVE_LOCKING`:
+    + chứng minh tính đúng đắn của locking
+    + hoạt động bằng cách thêm các mã kiểm tra vào kernel locking code
+    + phát hiện các vi phạm về rule locking trong vòng đời hệ thống như:
+        - lock bị yêu cầu sai thứ tự (theo dõi locking sequence và so sánh chúng)
+        - spinlock bị yêu cầu lock trong interrup handler và cả trong process context khi interrupt được bật
+- `CONFIG_DEBUG_ATOMIC_SLEEP`:
+    + phát hiện code mà sleep bị sai khi ở trong atomic section 
+    + cảnh báo thông qua `dmesg` khi gặp vi phạm
+## Concurrency issues
+- Kernel Concurrency SANitizer framework - KCSAN: công cụ phát hiện các lỗi khi xử lý đồng thời nhiều tác vụ trong linux kernel
+- `CONFIG_KCSAN`
+- KCSAN chèn các đoạn mã vào trong lúc đang compile và sau đó kiểm tra được lỗi trong quá trình run time
+- KCSAN có thể giúp tìm các lỗi tiềm ẩn, khó tái hiện trong quá trình xử lý đồng thời nhiều tác vụ 
+- Xem thêm tại `https://www.kernel.org/doc/html/latest/dev-tools/kcsan.html`
+## Alternatives to locking - các giải pháp khác thay thế cơ chế lock
+- Việc dùng cơ chế lock (mutex, spinlock) có thể gây ảnh hưởng xấu tới hiệu năng hệ thống
+- Vì vậy trong 1 số tình huống, có thể không cần dùng lock bằng các cơ chế sau:
+    + thuật toán lock-free như Read Copy Update (RCU): copy data ra sửa, rồi chờ các process đọc data cũ xong mới thay thế vào data gốc
+    + atomic operation
+## RCU API
+- RCU chỉ có ích khi
+    + chương trình đọc nhiều nhưng ghi ít
+    + chương trình tập trung vào việc lấy data nhất quán thay vì lấy data mới nhất
+- RCU ép buộc đồng bộ hóa về không gian và thời gian:
+    + Về không gian, luồng ghi không bao giờ ghi vào ô nhớ mà các luồng đọc đang đọc. Luồng ghi sẽ sao chép data từ ô nhớ đó để chỉnh sửa riêng, tránh ảnh hưởng tới ô nhớ mà các luồng đang đọc
+    + Về thời gian, vùng dữ liệu cũ chỉ được giải phóng khi không còn luồng đọc nào đọc nó
+- Vì vậy RCU quản lý quyền sở hữu mà không cần lock. Nó đảm bảo luồng đọc đọc data an toàn và luồng ghi sửa data mà không ảnh hưởng đến các luồng đọc khác
+- RCU API: `Documentation/RCU/whatisRCU.rst`
+    + `rcu_read_lock()` và `rcu_read_unlock()`: reclaim/release quyền đọc
+    + `synchronize_rcu()`, `call_rcu()`, hoặc `kfree_rcu()`: chờ các luồng đọc đang tồn tại
+    + `rcu_assign_pointer()`: cập nhật con trỏ RCU-protected
+    + `rcu_dereference()`: load con trỏ RCU-protected
+## RCU example: ensuring consistent accesses
+- Đọc/ghi không an toàn 
+    + ![alt text](images/image-76.png)
+    + Giữa lúc đọc a và b có thể thread/process khác cướp quyền thực thi và thay đổi dữ liệu, khiến việc đọc b không còn đồng nhất với a nữa
+- Đọc/ghi an toàn 
+    + ![alt text](images/image-77.png)
+    + oldconf: giữ lại địa chỉ vùng nhớ cũ, để cho các luồng đọc xong hết rồi thì giải phóng oldconf. Nếu không giữ lại vùng nhớ của shared_conf thông qua oldconf thì khi chuyển shared_conf qua vùng nhớ mới, ta sẽ mất dấu vùng nhớ cũ và gây memory leak
+## Atomic variables
