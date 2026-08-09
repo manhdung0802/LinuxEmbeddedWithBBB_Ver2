@@ -1506,19 +1506,19 @@ MODULE_AUTHOR("William Shakespeare");
     + dùng biến global khi driver đó chỉ điều khiển duy nhất 1 device
     + `DECLARE_WAIT_QUEUE_HEAD(module_queue);`
 - Các cách để sleep 1 thread:
-    + `void wait_event(queue, condition);`: ngủ cho đến khi queue được đánh thức và tham số `condition` là true. Chú ý rằng 1 khi đã ngủ, thread đang ngủ không thể bị ngắt
+    + `void wait_event(queue, condition);`: ngủ cho đến khi queue được đánh thức và tham số `condition` là true. Chú ý rằng 1 khi đã ngủ, thread đang ngủ không thể bị đánh thức bởi các signal hệ thống (SIGKILL, SIGTERM, ...)
     + `int wait_event_killable(queue, condition);`: Có thể bị ngắt, nhưng chỉ ngắt bởi fatal signal (SIGKILL). 
         - Return về `-ERESTARTSYS` nếu bị ngắt. 
         - Return 0 nếu thức dậy bình thường
     + `int wait_event_interruptible(queue, condition);`: phổ biến nhất
-        - có thể bị ngắt bởi bất kỳ signal nào
+        - có thể bị ngắt bởi bất kỳ signal hệ thống nào
         - Return `-ERESTARTSYS` nếu bị ngắt
     + `int wait_event_timeout(queue, condition, timeout);`
         - ngừng sleep khi thread bị đánh thức hoặc timeout
         - Return 0 nếu timer kết thúc
         - Return khác 0 nếu tham số `condition` là true
     + `int wait_event_interruptible_timeout(queue, condition, timeout);`
-        - tương tư như trên và có thể bị ngắt
+        - tương tư như trên và có thể bị đánh thức bởi các signal hệ thống
         - Return 0 nếu timeout
         - Return `-ERESTARTSYS` nếu bị ngắt
         - Return > 0 nếu `condition` thỏa mãn
@@ -1530,10 +1530,11 @@ MODULE_AUTHOR("William Shakespeare");
         ```
 ### Waking up
 - Thường thread được wakeup bởi interrupt khi data của thread đang ngủ trở nên khả dụng
-- `wake_up(&queue)`: đánh thức tất cả thread trong wait queue
-- `wake_up_interruptible(&queue)`: đánh thức tất cả thread đang chờ ở trạng thái ngủ trong queue được chỉ định
+- `wake_up(&queue)`: đánh thức tất cả thread trong wait queue, bao gồm các thread có trạng thái là TASK_INTERRUPTIBLE và TASK_UNINTERRUPTIBLE
+- `wake_up_interruptible(&queue)`: chỉ đánh thức các thread có trạng thái TASK_INTERRUPTIBLE đang chờ ở trạng thái ngủ trong queue được chỉ định
 ### Exclusive vs non-exclusive thread (độc quyên vs không độc quyền)
-- Exclusive sleep: hữu ích để tránh đánh thức nhiều thread khi chỉ có 1 thread có thể xử lý event, và thead đó không ảnh hưởng đến thread khác
+- Là cơ chế quản lý hàng đợi của kernel để tối ưu hóa hiệu năng.
+- Exclusive sleep: đánh thức 1 luồng duy nhất, hữu ích để tránh đánh thức nhiều thread khi chỉ có 1 thread có thể xử lý event, và thead đó không ảnh hưởng đến thread khác
     + `wait_event_interruptible_exclusive()`: đưa 1 thread vào hàng chờ exclusive
     + `wake_up()`/`wake_up_interruptible()`: đánh thức tất cả non-exclusive thread và chỉ 1 exclusive thread
     + `wake_up_all()`/`wake_up_interruptible_all()`: đánh thức tất cả non-exclusive và tất cả exclusive thread
@@ -1546,6 +1547,7 @@ MODULE_AUTHOR("William Shakespeare");
     - `wake_up(&queue)`: tất cả thread trong queue được đánh thức, sau đó bộ lập lịch kiểm lại condition xem có thỏa mãn không, nếu không thỏa thì thread ngủ trở lại
 - Nếu không implement để bỏ qua việc kiểm tra condition liên tục của thead, có thể process sẽ hết tài nguyên vì phải check condition liên tục
 ### How to sleep with completions - Làm thế nào để sleep sau khi đã hoàn thành công việc
+- Cơ chế completion này là 1 cơ chế đánh thức/sleep luồng, nó khác với wake_up() trước đó
 - `wait_for_completion(struct completion *completion)`: đưa thread vào trạng thái wait state, dùng khi không có điều kiện cụ thể nào cần được thực hiện khi wake-up
     + tận dụng được năng lượng trong lúc chờ
     + đơn giản hóa việc sử dụng
@@ -1603,7 +1605,8 @@ MODULE_AUTHOR("William Shakespeare");
 - Tránh viết hàm lặp như while để tránh treo
 
 ## Interrupt Management
-- **process context**: ngữ cảnh tiến trình, hệ điều hành quản lý chung process và thread trong context này
+- **process context**: ngữ cảnh tiến trình, hệ điều hành quản lý chung process và thread trong context này. Trong context này, thread/process có thể sleep, bị ngắt
+- **Atomic context**: là bối cảnh mà tại đó CPU không được chuyển qua làm việc khác. Bộ lập lịch, sleep bị vô hiệu hóa. Atomic context thường dùng khi xử lý phần cứng khẩn cấp như ngắt, hoặc bảo vệ tài nguyên dùng chung
 - Ngắt được bật: là khi CPU đang xử lý các app như thường, tức là trong process context, các đường ngắt đang chờ ngắt
 - Ngắt bị tắt/vô hiệu hóa: là khi CPU đang xử lý ngắt, tất cả các process đều bị dừng
 - **Chỉ có process context thì thread, process, các handler, ... mới được sleep**
@@ -1624,7 +1627,7 @@ MODULE_AUTHOR("William Shakespeare");
 - Không có gì đảm bảo rằng hệ thống sẽ ở trong không gian địa chỉ nào khi ngắt xảy ra, vì vậy không thể truyền nhận data từ user space, không dùng các hàm copy_to_user, copy_from_user trong hàm xử lý ngắt
     + Tức là khi ngắt xảy ra, hệ thống có thể đang xử lý tác vụ khác, do đó hệ thống không thể biết mình đang đứng ở không gian bộ nhớ của tiến trình nào
     + Vì không biết ở tiến trình nào nên việc copy data giữa kernel space và user space trong hàm xử lý ngắt là nguy hiểm, gây panic
-- Việc thực hiện hàm xử lý ngắt được quản lý bởi CPU, không phải bộ lập lịch. Các hàm xử lý ngắt không thể thực hiện các hành độ mà đưa thread vào sleep, vì sẽ không có cơ chế nào có thể khôi phục việc thực thi của chúng. CỤ thể, ta cần cấp phát bộ nhớ với `GFP_ATOMIC` để kernel cấp ngay lập tức vùng ram, nếu hết ram thì báo lỗi luôn chứ không bắt hệ thống chờ
+- Việc thực hiện hàm xử lý ngắt được quản lý bởi CPU, không phải bộ lập lịch. Các hàm xử lý ngắt không thể thực hiện các hành động mà đưa thread vào sleep, vì sẽ không có cơ chế nào có thể khôi phục việc thực thi của chúng. CỤ thể, ta cần cấp phát bộ nhớ với `GFP_ATOMIC` để kernel cấp ngay lập tức vùng ram, nếu hết ram thì báo lỗi luôn chứ không bắt hệ thống chờ
     + vì hàm xử lý ngắt được thực thi bởi CPU, nên nếu cho nó đi ngủ, CPU sẽ không có cơ chế đánh thức hàm đó như bộ lập lịch làm, dẫn đến treo hệ thống
     + các hàm gây ngủ là: msleep, fsleep, mutex_lock, down_semaphore, ...
 - Hàm xử lý ngắt chạy trong điều kiện tất cả các ngắt khác bị disable trên local CPU. Vì vậy, chúng phải hoàn thành công việc thật nhanh để tránh block ngắt khác quá lâu
@@ -1658,9 +1661,9 @@ MODULE_AUTHOR("William Shakespeare");
         + trong Linux, nó được implement như là softirq, thread handle và workqueue
         + viết tắt "bh" nghĩa là "softirq" trong 1 số tài liệu cũ
 ### Softirqs
-- Softirq handler là các callback xử lý khi tất cả interrupt handler đã hoàn thành, trước khi kernel tiếp cục qúa trình lập lịch
+- Softirq handler là các callback xử lý khi tất cả interrupt handler đã hoàn thành, trước khi kernel tiếp tục quá trình lập lịch
     + chúng xử lý trong điều kiện tất cả các ngắt đều được bật (là lúc mà CPU sẵn sàng nhận ngắt, không bị block bởi quá trình xử lý ngắt Top half nào cả)
-    + chúng chạy trước khi bộ lập lịch giành lại quyển kiểm soát (tức là sau khi Top half vừa mới xong), nên không được sleep
+    + chúng chạy trước khi bộ lập lịch giành lại quyển kiểm soát (tức là sau khi Top half vừa mới xong), **nên không được sleep**
     + Trình xử lý softirq có thể chạy đồng thời trên nhiều CPU
 - Số lượng softirq là cố định, softirq không được dùng bởi driver nhưng có thể được dùng bởi các kernel subsystem (network, ...). Danh sách của softirq ở `include/linux/interrupt.h`
 - Để tránh làm cạn kiệt hệ thống, softirq sẽ bị giới hạn:
@@ -1670,6 +1673,7 @@ MODULE_AUTHOR("William Shakespeare");
 - ![alt text](images/image-69.png)
 - Độ ưu tiên: IRQ > Softirq > Process
 ### Threaded interrupts
+- Biến hàm xử lý ngắt thành 1 luồng kthread thông thường để tránh làm block CPU khi ngắt tới quá nhiều. Lúc này, hàm xử lý ngắt được điều chỉnh lại độ ưu tiên để cpu có thể xử lý các việc khác
 - Ta có thể kết hợp 1 threaded handler với 1 hard IRQ handler
     + Hard IRQ handler sẽ kích hoạt nó bằng việc trả về `IRQ_WAKE_THREAD`
     + Threaded handler sẽ được xử lý trong 1 thread nằm trong process context
@@ -1756,7 +1760,7 @@ MODULE_AUTHOR("William Shakespeare");
     + tương tự nhưng có thể bị ngắt bởi lệnh SIGKILL, process được đặt ở trạng thái `TASK_INTERRUPTIBLE`
     + Nếu bị ngắt, return về số khác 0 và gỡ bỏ lock
 - `int mutex_lock_interruptible(struct mutex *lock)`
-    + tương tự nhưng có thể bị ngắt bởi bất kì signal nào
+    + tương tự nhưng có thể bị ngắt bởi bất kì signal hệ thống nào (SIGKILL, SIGTERM, ...) nào
 - `void mutex_unlock(struct mutex *lock)`
     + release lock, cần release ngay khi thoát khỏi section
 ## Spinlocks - 1 loại lock đặc biệt
@@ -1765,6 +1769,7 @@ MODULE_AUTHOR("William Shakespeare");
 - Ban đầu được thiết kế cho hệ thống đa xử lý
 - Spinlock không bao giờ sleep và tiếp tục quay vòng kiểm tra cho tới khi lock khả dụng. 
 - **Khi tới đoạn code lấy lock, nếu dùng spinlock và lấy không được thì thread/process vẫn tốn cpu để chờ lấy lock**
+- *Để spinlock hoạt động thì cần cấu hình kernel: CONFIG_SMP, CONFIG_PREEMPT . Nếu không thì các API spinlock sẽ được compile thành hàm rỗng, không có chức năng nữa*
 - các critical section mà được bảo vệ bởi 1 spinlock thì không được sleep
 - Ưu thế so với lock mutex:
     + có thể dùng trong trường hợp có interrupt
@@ -1777,12 +1782,14 @@ MODULE_AUTHOR("William Shakespeare");
     + `void spin_lock(spinlock_t *lock)`
 - Release lock:
     + `void spin_unlock(spinlock_t *lock)`
+- Try lock
+    + `int spin_trylock(spinlock_t *lock)`
 ## Spinlocks vs. preemption/migration
 - **kernel preemption**: cơ chế chiếm quyền điều khiển
     + khi thread 1 đang thực hiện, nếu có thread 2 ưu tiên cao hơn thì cơ chế này sẽ đưa thread 1 vào sleep và đẩy thread 2 lên thực hiện
 - **kernel migration**: cơ chê đưa thread/process đang chạy sang 1 cpu khác
 - ![alt text](images/image-73.png)
-    + Khi 1 critical section đang nắm spinlock, nếu có thread khác cố gắng lấy lock, do cơ chế preemption, thread 2 sẽ được đẩy lên thực hiện (vì spinlock không làm thread/process sleep), nhưng có thể sẽ loop trong vòng lặp vì lock đang được nắm bởi critial section -> gọi là deadlock
+    + Khi 1 critical section đang nắm spinlock, nếu có thread khác cố gắng lấy lock, do cơ chế preemption, thread 2 sẽ được đẩy lên thực hiện (vì spinlock không làm thread/process sleep), nhưng có thể sẽ loop trong vòng lặp vì lock đang được nắm bởi critial section, critical section không có cách nào nhả lock vì đã nhường CPU để xử lý thread 2 -> gọi là deadlock
 - Nếu đã vào deadlock thì cơ chế kernel preemption bị vô hiệu hóa
 - Khi 1 thread/process đang chiếm spinlock trên CPU 0 thì nó không được chuyển qua CPU X nào khác, phải xử lý xong thật nhanh. Vì vậy kernel sẽ vô hiệu quá cơ chế preemption và migration, Preemption bị vô hiệu hóa thì cũng vô hiệu hóa luôn migration
 ## Spinlocks vs. interrupts
@@ -1863,3 +1870,306 @@ static unsigned int ulite_tx_empty(struct uart_port *port) {
     + ![alt text](images/image-77.png)
     + oldconf: giữ lại địa chỉ vùng nhớ cũ, để cho các luồng đọc xong hết rồi thì giải phóng oldconf. Nếu không giữ lại vùng nhớ của shared_conf thông qua oldconf thì khi chuyển shared_conf qua vùng nhớ mới, ta sẽ mất dấu vùng nhớ cũ và gây memory leak
 ## Atomic variables
+- #include <linux/atomic.h>
+- Atomic hữu ích khi tài nguyên dùng chung là 1 biến số nguyên
+- 1 lệnh như n++ cũng chưa chắc đảm bảo là atomic trên tất cả process
+- Ý tưởng cho atomic là RMW operation (Read-Modify-Write)
+- Các hàm chính để thao tác với biến atomic
+    + Set hoặc read counter
+        - `void atomic_set(atomic_t *v, int i)`
+        - `int atomic_read(atomic_t *v)`
+    + Các hàm không có return
+        - `void atomic_inc(atomic_t *v)`
+        - `void atomic_dec(atomic_t *v)`
+        - `void atomic_add(int i, atomic_t *v)`
+        - `void atomic_sub(int i, atomic_t *v)`
+    + Các hàm kiểm tra kết quả
+        - `int atomic_inc_and_test(...)`: tăng biến lên 1 và check xem biến đó = 0 hay không
+        - `int atomic_dec_and_test(...)`
+        - `int atomic_sub_and_test(...)`
+    + Các hàm trả về giá trị mới
+        - `int atomic_inc_return(...)`
+        - `int atomic_dec_return(...)`
+        - `int atomic_add_return(...)`
+        - `int atomic_sub_return(...)`
+## Atomic bit operations
+- Cung cấp các xử lý nhanh và đảm bảo tính nguyên tử (atomic)
+- Trên hầu hết các kiến trúc, các phép toán này áp dụng cho kiểu `unsigned long *`. Một số ít khác áp dụng cho kiểu `void *`
+- Cực kì phù hợp khi thao tác với bitmaps
+- Các hàm set, clear, đảo bit (0 thành 1, 1 thành 0)
+    + `void set_bit(int nr, unsigned long *addr)`
+    + `void clear_bit(int nr, unsigned long *addr)`
+    + `void change_bit(int nr, unsigned long *addr)`
+- Hàm test bit
+    + `int test_bit(int nr, unsigned long *addr)`
+- Hàm test và modify (trả về giá trị trước khi modify)  
+    + `int test_and_set_bit(...)`
+    + `int test_and_clear_bit(...)`
+    + `int test_and_change_bit(...)`
+## Kernel locking: summary and references
+- Chỉ dùng mutex trong context cho phép sleep
+- Dùng spinlocks trong context không cho phép sleep (như interrupt) hoặc trong tình huống mà sleep quá tốn kém (như critical section)
+- Dùng atomic operations để bảo vệ giá trị nguyên hoặc địa chỉ
+- Bảng khuyến nghị dùng hàm lock nào cho các trường hợp cụ thể
+    + ![alt text](images/image-78.png)
+        - Hàng là cái đang chạy
+        - Cột là cái tới
+    + ![alt text](images/image-79.png)
+    + Độ ưu tiên thì trái qua phải
+    + Thằng nào có độ ưu tiên thấp hơn khi gặp thằng ưu tiên cao thì phải dùng lock để chặn thằng cao, tránh việc data bị đổi bất ngờ. Việc này làm cho các thằng cao cần chờ các thằng thấp làm xong, gây chậm các thằng cao, tuy nhiên cần đánh đổi để bảo toàn data
+    + Tuy nhiên vẫn có thể dùng SLIS cho irq handler để đảm bảo truy cập đồng bộ khi có nhiều CPU cùng gửi ngắt tới khiến irq handler bị gọi nhiều lần
+- Đọc thêm về Lock: `https://www.kernel.org/doc/html/latest/kernel-hacking/locking.html`
+- **Hãy lock data chứ không phải lock đoạn code**
+## Thực hành
+- `CONFIG_DEBUG_ATOMIC_SLEEP`: cảnh báo 1 function có thể sleep trong atomic context (sleep không được phép trong atomic context)
+
+# Direct memory access
+## DMA main principles
+### DMA integration
+- DMA là việc mà copy data trực tiếp từ device vào RAM mà không cần thông qua CPU
+- Thực hiện nhanh, ít tốn CPU hơn
+- Dùng khi cần truyền 1 lượng data lớn, xử lý data liên tục, giao tiếp ngoại vi tốc độ cao, ... mà có thể gây nghẽn CPU
+- ![alt text](images/image-80.png)
+### Peripheral DMA
+- Một vài device controller được nhúng bộ DMA controller vào, vì vậy chúng có thể tự thực hiện DMA
+- ![alt text](images/image-81.png)
+### DMA controller
+- Các device controller khác dựa vào 1 DMA controller nằm trên SoC
+- Những device này cần truyền các mô tả DMA (DMA descriptor) tới bộ controller này
+- ![alt text](images/image-82.png)
+### DMA descriptors
+- Các bộ mô tả DMA mô tả những thuộc tính khác nhau của quá trình truyền dữ liệu DMA và được liên kết với nhau theo dạng chuỗi.
+- ![alt text](images/image-83.png)
+### Cache constrains
+- CPU có thể truy cập memory thông qua 1 data cache. Việc dùng data cache này rất hiệu quả vì data cache có thể được truy cập nhanh hơn cache trên bus
+- Nhưng DMA không truy cập CPU cache nên vì vậy cần chú ý tính nhất quán của cache (cache content vs memory content)
+    + Khi CPU đọc từ bộ nhớ được truy cập bởi DMA, các đường cache liên quan phải được vô hiệu hóa để ngăn việc đọc lại dữ liệu cũ từ bộ nhớ 
+        - Vì DMA ghi thẳng dữ liệu vào RAM nên data trong cache của CPU vẫn là data cũ, nếu CPU đọc thì sẽ đọc dữ liệu cũ. Vì vậy cần vô hiệu hóa các cache lines
+    + Khi CPU ghi vào bộ nhớ trước bắt đầu truyền dữ liệu DMA, đường cache phải được đẩy hết dữ liệu hoặc dọn sạch để đảm bảo data được thực sự ghi vào bộ nhớ
+        - khi CPU ghi data, data đó chỉ mới được đưa vào cache mà chưa kịp đưa vào RAM. Nếu lúc này DMA chuyển data từ RAM vào device, dữ liệu từ RAM đó là dữ liệu cũ. Vì vậy, trước khi DMA gửi, cần đẩy hết data trong cache của CPU vào RAM
+    + ![alt text](images/image-84.png)
+### DMA addressing constraints
+- Memory và device đều có physical address: `phys_addr_t`
+- CPU truy cập memory thông qua MMU bằng con trỏ ảo `void *`
+- DMA controller không thể truy cập memory qua MMU, vì vậy nó không truy cập virtual address được. - Thay vào đó nó truy cập `dma_addr_t` qua 1 trong 2 cách:
+    + trực tiếp physical address
+    + thông qua IOMMU để tạo mapping memory
+- ![alt text](images/image-85.png)
+### DMA memory allocation constraints
+- Mỗi phần memory được truy cập bởi DMA phải là các vùng nhớ liên tục, có nghĩa rằng nó có thể dùng
+    + bất kì memory nào được cấp phát bởi `kmalloc()` (up to 128KB)
+    + bất kì memory nào được cấp phát bởi `__get_free_pages()` (up to 8MB)
+    + các khối I/O và network buffer được thiết kế để hỗ trợ DMA
+- Nếu buffer nhỏ hơn 1 page, **không thể dùng**:
+    + kernel memory được tạo bởi`vmalloc()`
+    + user memory được tạo bởi `malloc()`
+
+## Kernel APIs for DMA
+- dma-mapping API
+    + cấp phát và quản lý DMA buffer
+    + cung cấp các interface để xử lý nhất quán
+    + quản lý IOMMU DMA mappings
+    + `https://www.kernel.org/doc/html/latest/core-api/dma-api.html`
+    + `https://www.kernel.org/doc/html/latest/core-api/dma-api-howto.html`
+- dmaengine API
+    + trừu tượng hóa bộ DMA controller
+    + cung cấp các function để cấu hình, queue, trigger, strop quá trình truyền data
+    + không dùng khi xử lý DMA của ngoại vi
+    + `https://www.kernel.org/doc/html/latest/driver-api/dmaengine/client.html`
+- dma-buf API
+    + cho phép chia sẻ DMA buffer giữa các device trong kernel
+### dma-mapping: Coherent or streaming DMA mappings
+- Mục này nói về 2 cơ chế ánh xạ bộ nhớ khác nhau mà Linux kernel cung cấp để ngoại vi có thể trao đổi data trực tiếp với RAM thông qua DMA controller
+- Coherent mappings - ánh xạ nhất quán:
+    + khi có yêu cầu mapping, kernel cấp phát 1 buffer phù hợp và thiết lập ánh xạ (mapping) cho driver
+    + CPU và driver có thể truy cập đồng thời vào buffer này mà không sợ sai lệch data
+    + Buffer này phải nằm trong vùng nhớ nhất quán với bộ đệm cache
+    + Buffer thường được tạo ra khi module load và bị hủy đi khi module bị gỡ
+        - việc thiết lập có thể tốn kém tài nguyên trên 1 số platform
+        - thường được triển khai bằng cách vô hiệu hóa cache trên kiến trúc arm
+- Streaming mappings
+    + dùng 1 buffer đã được cấp phát trước đó, tức là đã có sẵn vùng nhớ RAM rồi, kernel không cần cấp phát nữa
+    + driver cung cấp sẵn 1 buffer, kernel chỉ việc thiết lập mapping
+    + việc ánh xạ được thiết lập mỗi lần truyền dữ liệu, giúp các thanh ghi DMA được giải phóng trên phần cứng, giúp tiết kiệm tài nguyên và các thanh ghi được giải phóng
+### dma-mapping: memory addressing constraints
+- Nói về việc kiểm soát giới hạn RAM mà 1 ngoại vi có thể truy cập được thông qua DMA
+- Bất kì thiết bị nào có khả năng là master trên 1 bus đều cần phải báo cho hệ điều hành biết dải địa chỉ của nó
+- Nếu không báo gì, Linux kernel mặc định coi thiết bị đó có giải địa chỉ 32-bit, tức là chỉ có thể truy cập được tối đa 4GB RAM
+- Nếu platform hỗ trợ, dải địa chỉ của DMA có thể:
+    + tăng
+    + giảm
+    + Linux lưu trữ khả năng này cho mỗi device
+- DMA mapping có thể thất bại vì buffer nằm ngoại phạm vi tiếp cận, ví dụ như driver muốn device truyền 8GB RAM trong khi device đó chỉ có khả năng đọc 4GB RAM
+    + `swiotlb` có thể giải quyết 1 vài tình huống bằng việc tận dụng các bộ đệm nhảy (bounce buffer) nội bộ
+- Trong tất cả trường hợp, DMA mask phải nhất quán trước khi cấp phát, mapping buffer
+    + `int dma_set_mask_and_coherent(struct device *dev, u64 mask)`
+### dma-mapping: Allocating coherent memory mappings
+- kernel đảm nhận nhiệm vụ cấp phát buffer và mapping
+```c
+#include <linux/dma-mapping.h>
+void * /* Output: buffer address */
+dma_alloc_coherent(
+    struct device *dev, /* device structure */
+    size_t size, /* Needed buffer size in bytes */
+    dma_addr_t *handle, /* Output: DMA bus address */
+    gfp_t gfp /* Standard GFP flags */
+);
+void dma_free_coherent(struct device *dev,
+    size_t size, void *cpu_addr, dma_addr_t handle);
+```
+### dma-mapping: Setting up streaming memory mappings (single)
+- Thiết lập ánh xạ bộ nhớ streaming (đơn lẻ), dữ liệu nằm trên 1 vùng nhớ và liên tục trên RAM
+- Hoạt động trên các bộ nhớ đệm đã được cấp phát sẵn
+    ```c
+    #include <linux/dma-mapping.h>
+    dma_addr_t dma_map_single(
+        struct device *,        /* device structure */
+        void *,                 /* input: buffer to use */
+        size_t,                 /* buffer size */
+        enum dma_data_direction /* Either DMA_BIDIRECTIONAL,
+                                * DMA_TO_DEVICE or
+                                * DMA_FROM_DEVICE */
+    );
+    void dma_unmap_single(struct device *dev, dma_addr_t handle,
+                            size_t size, enum dma_data_direction dir);
+    ```
+### dma-mapping: Setting up streaming memory mappings (multiples)
+- Thiết lập ánh xạ bộ nhớ streaming (nhiều bộ đệm), data bị chia nhỏ nằm rải rác ở nhiều vị trí khác nhau trong RAM, không liên tục
+- 1 scatterlist (danh sách phân tán) sử dụng thư viện scatter-gather có thể được dùng để map nhiều bộ đệm buffer và liên kết chúng lại với nhau
+    ```c
+    #include <linux/dma-mapping.h>
+    #include <linux/scatterlist.h>
+    struct scatterlist sglist[NENTS], *sg;
+    int i, count;
+    sg_init_table(sglist, NENTS);
+    sg_set_buf(&sglist[0], buf0, len0);
+    sg_set_buf(&sglist[1], buf1, len1);
+    count = dma_map_sg(dev, sglist, NENTS, DMA_TO_DEVICE);
+    for_each_sg(sglist, sg, count, i) {
+            dma_address[i] = sg_dma_address(sg);
+            dma_len[i] = sg_dma_len(sg);
+    }
+    ...
+    dma_unmap_sg(dev sglist, count, DMA_TO_DEVICE);
+    ```
+### dma-mapping: Setting up streaming I/O mappings
+- địa chỉ vật lý của thanh ghi MMIO có  thể cần phải remap để có thể được truy cập bằng IOMMU
+    ```c
+    #include <linux/dma-mapping.h>
+    dma_addr_t dma_map_resource(
+            struct device *,         /* device structure */
+            phys_addr_t,             /* input: resource to use */
+            size_t,                  /* buffer size */
+            enum dma_data_direction, /* Either DMA_BIDIRECTIONAL,
+                                      * DMA_TO_DEVICE or
+                                      * DMA_FROM_DEVICE */
+            unsigned long attrs,     /* optional attributes */
+    );
+    void dma_unmap_resource(struct device *dev, dma_addr_t handle,
+                size_t size, enum dma_data_direction dir, unsigned long attrs);
+    ```
+### dma-mapping: Verifying DMA memory mappings
+- Đây là việc kiểm tra xem linux đã thiết lập ánh xạ giữa RAM và device thành công hay chưa
+- tất cả các hàm mapping helper có thể thất bại và trả về lỗi
+- Cách đúng nhất để kiểm tra tính hợp lệ của giá trị `dma_addr_t` là gọi hàm: `int dma_mapping_error(struct device *dev, dma_addr_t dma_addr)`
+    + Các gợi ý có thể được thêm nếu cấu hình `CONFIG_DMA_API_DEBUG`
+### dma-mapping: Syncing streaming DMA mappings
+- Nhìn chung, các ánh xạ dạng luông (streaming mapping) sẽ được:
+    + ánh xạ ngay trước khi sử dụng với DMA
+        - `MEM_TO_DEV`: cache được đẩy dữ liệu xuống RAM
+    + sau đó hủy ánh xạ ngay
+        - `DEV_TO_MEM`: các cache line bị vô hiệu hóa
+- CPU chỉ được phép truy cập vào buffer sau khi đã hủy ánh xạ
+- Nếu cùng 1 vùng memory được dùng trong nhiều lần DMA transfer liên tiếp, việc ánh xạ có thể được giữ nguyên. Trong trường hợp này data cần được đồng bộ hóa trước khi truy cập
+    + Khi CPU cần truy cập data
+        ```c
+        dma_sync_single_for_cpu(dev, dma_handle, size, direction);
+        dma_sync_sg_for_cpu(dev, sglist, nents, direction);
+        ```
+    + Khi device cần truy cập data
+        ```c
+        dma_sync_single_for_device(dev, dma_handle, size, direction);
+        dma_sync_sg_for_device(dev, sglist, nents, direction);
+        ```
+### Starting DMA transfers
+- Nếu device mà mình đang viết driver thực hiện DMA ngoại vi, thì không có API bên ngoài nào liên quan vì device đó có bộ DMA controller riêng rồi nên nó tự cấu hình, quản lý, truyền data mà không cần CPU can thiệp
+- Nếu device phụ thuộc vào bộ DMA bên ngoài, không có DMA riêng, ta cần:
+    + yêu cầu device sử dụng DMA để nó kích hoạt đường truyền của mình 
+    + dùng framework `dmaengine`, đặc biệt là slave API của nó
+### The dmaengine framework
+- ![alt text](images/image-86.png)
+- Slave API: initial configuration
+    + Các bước để truyền DMA với `dmaengine`:
+        1. yêu cầu 1 channel để dùng độc quyền bằng `dma_request_chan()` hoặc các biến thể của hàm này
+            + con trỏ trỏ vào channel này sẽ được dùng xuyên suốt quá trình
+            + trả về con trỏ kiểu `struct dma_chan`, con trỏ này cũng có thể là 1 con trỏ báo lỗi
+        2. Cấu hình engine bằng cách thêm thông tin cho `struct dma_slave_config` và gán struct này vào `dmaengine_slave_config`
+            ```c
+            struct dma_slave_config txconf = {};
+            /* Tell the engine what configuration we want on a given channel:
+            * direction, access size, burst length, source and destination).
+            * Source being memory, there is no buswidth or maxburst limitation
+            * and each buffer will be different. */
+            txconf.direction = DMA_MEM_TO_DEV;
+            txconf.dst_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE;
+            txconf.dst_maxburst = TX_TRIGGER;
+            txconf.dst_addr = fifo_dma_addr;
+            ret = dmaengine_slave_config(dma->txchan, &txconf);
+            ```
+- Slave API: Per-transfer configuration
+    + Cách cấu hình theo từng lần truyền data
+        1. Tạo 1 bộ mô tả chứa tất cả cấu hình yêu cầu cho lần truyền tiếp theo bằng các hàm sau:
+            ```c
+            struct dma_async_tx_descriptor *
+                dmaengine_prep_slave_single(struct dma_chan *chan, dma_addr_t buf,
+                        size_t len, enum dma_transfer_direction dir,
+                        unsigned long flags);
+            struct dma_async_tx_descriptor *
+                dmaengine_prep_slave_sg(struct dma_chan *chan, struct scatterlist *sgl,
+                        unsigned int sg_len, enum dma_transfer_direction dir,
+                        unsigned long flags);
+            struct dma_async_tx_descriptor *
+                dmaengine_prep_dma_cyclic(struct dma_chan *chan, dma_addr_t buf, size_t buf_len,
+                        size_t period_len, enum dma_data_direction dir);
+            ```
+            - flag thường dùng: `DMA_PREP_INTERRUPT` tạo 1 interrupt khi hoàn thành
+            - bộ mô tả được trả về có thể dùng để điền thông tin vào 1 callback:
+                ```c
+                desc->callback = foo_dma_complete;
+                desc->callback_param = foo_dev;
+                ```
+                + `desc` là con trỏ trỏ tới `struct dma_async_tx_descriptor`
+        2. Đưa thao tác tiếp theo vào hàng đợi queue để chuẩn bị kích hoạt truyền 
+            ```c
+            dma_cookie_t cookie;
+            cookie = dmaengine_submit(desc);
+            ret = dma_submit_error(cookie);
+            if (ret)
+                ...
+            ```
+        3. 
+            + trigger lệnh truyền trong queue
+                - `dma_async_issue_pending(chan)`
+            + trong trường hợp có lỗi hoặc device bị dừng trong khi đang dùng, ta có thể hủy tất cả các lệnh truyền đang diễn ra bằng hàm `dmaengine_terminate_sync(chan)`
+### Ví dụ
+- ví dụ về 2 cơ chế ánh xạ streaming và coherent
+    + `https://bootlin.com/pub/drivers/r6040-network-driver-with-comments.c`
+- Ví dụ về slave API
+    + `https://elixir.bootlin.com/linux/v7.1.7/C/ident/stm32_i2c_prep_dma_xfer`
+### Thực hành
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Kernel resources
+- Các driver cần đóng góp, tinh chỉnh nằm ở: `drivers/staging`
+- Hướng dẫn submit bản vá kernel Linux: `https://www.kernel.org/doc/html/latest/process/submitting-patches.html`
