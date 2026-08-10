@@ -2234,8 +2234,25 @@ void dma_free_coherent(struct device *dev,
 - Ví dụ về slave API
     + `https://elixir.bootlin.com/linux/v7.1.7/C/ident/stm32_i2c_prep_dma_xfer`
 ### Thực hành
+- Trong struct platform_device, biến `resource` chứa thông tin vùng nhớ thanh ghi (MMIO), IRQ number (nếu phần cứng có ngắt), 
+- khởi tạo và dọn dep DMA
+    + Khởi tạo:
+        - yêu cầu channel cho con trỏ txchan bằng hàm `dma_request_chan`
+        - remap lại địa chỉ MMIO để có thể truy cập bằng IOMMU bằng hàm dma_map_resource để truyền vào txconf.dst_addr
+        - cấu hình các thuộc tính của struct dma_slave_config txconf 
+        - đưa struct txchan và txconf vào dmaengine bằng `dmaengine_slave_config`
+- Nếu hàm trong linux trả về ERR_PTR(Mã lỗi) thì trong hàm gọi hàm đó cần kiểm tra IS_ERR(con trỏ chứa mã lỗi)
+- QUy trình:
+    + [BƯỚC 1: KHỞI TẠO] ──► Yêu cầu cấp kênh DMA từ hệ thống (dma_request_chan)
+    + [BƯỚC 2: CẤU HÌNH KÊNH] ──► Thiết lập địa chỉ phần cứng ngoại vi (dmaengine_slave_config)
+    + [BƯỚC 3: ÁNH XẠ BỘ NHỚ] ──► Chuyển địa chỉ RAM (Virtual) thành địa chỉ DMA Bus (dma_map_single)
+    + [BƯỚC 4: CHUẨN BỊ DESCRIPTOR] ──► Tạo bộ mô tả, đính kèm hàm Callback (dmaengine_prep_slave_single)
+    + [BƯỚC 5: NỘP HỢP ĐỒNG] ──► Đẩy bộ mô tả vào hàng đợi (dmaengine_submit)
+    + [BƯỚC 6: KÍCH HOẠT PHẦN CỨNG] ──► Phát lệnh chạy & đưa CPU đi ngủ (dma_async_issue_pending) (Phần cứng tự động truyền bất đồng bộ ──► Phát ngắt Interrupt khi xong)
+    + [BƯỚC 7: THU DỌN & ĐỒNG BỘ] ──► Hủy ánh xạ bộ nhớ (dma_unmap_single) & Dọn dẹp tài nguyên
 
-
+### File code chuẩn cho toàn project của serial: 
+- `https://bootlin.com/doc/training/sessions/online.linux-kernel.sep2023/solutions/3f-serial-debugging/serial.c`
 
 
 
