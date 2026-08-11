@@ -2250,18 +2250,84 @@ void dma_free_coherent(struct device *dev,
     + [BƯỚC 5: NỘP HỢP ĐỒNG] ──► Đẩy bộ mô tả vào hàng đợi (dmaengine_submit)
     + [BƯỚC 6: KÍCH HOẠT PHẦN CỨNG] ──► Phát lệnh chạy & đưa CPU đi ngủ (dma_async_issue_pending) (Phần cứng tự động truyền bất đồng bộ ──► Phát ngắt Interrupt khi xong)
     + [BƯỚC 7: THU DỌN & ĐỒNG BỘ] ──► Hủy ánh xạ bộ nhớ (dma_unmap_single) & Dọn dẹp tài nguyên
-
 ### File code chuẩn cho toàn project của serial: 
 - `https://bootlin.com/doc/training/sessions/online.linux-kernel.sep2023/solutions/3f-serial-debugging/serial.c`
 
-
-
-
-
-
-
-
-
+# Kernel debugging
+## Debug/tracing using logs
+- printk():
+    + dùng tốt trong mọi context
+    + range log từ 0 (emergency) tới 7 (debug)
+    + Có thể có độ trễ khi in ra ở serial console có baudrate 115200
+    + không nên đưa vào source release
+- pr_*() family:
+    + có nhiều hàm theo từng level log: pr_emerg(), pr_alert(), pr_crit(), pr_err(), pr_warn(), pr_notice(), pc_info(), pr_cont(), pr_debug()
+    + có thể dùng define để custom thêm ký tự mỗi khi dùng các lệnh pr_*()
+        - `#define pr_fmt(fmt) "foo: " fmt` sau đó gọi `pr_info("Dung")` chẳng hạn thì in ra `foo: Dung`
+- dev_*() family:
+    + có thể chèn thêm prefix là tên device mỗi khi dùng lệnh để in
+    + dev_emerg(), dev_alert(), dev_crit(), dev_err(), dev_warn(), dev_notice(), dev_info(), dev_dbg()
+    + `dev_info(&pdev->dev, "dung"\n);` -> `serial 48024000.serial: dung`
+- format của % trong lệnh in:
+    + %p: in ra giá trị đã được mã hóa của con trỏ (gọi là hashed value) để tránh bị khai thác lỗ hổng
+    + %px: luôn hiển thị địa chỉ thật của con trỏ
+    + %pK: hiển thị giá trị hashed value của con trỏ hoặc giá trị 0 hoặc địa chỉ thật của con trỏ dựa vào cấu hình `kprt_restrict sysctl`
+    + %p0F: in ra thông tin của 1 device-tree node, chuyển cấu trúc node thành dạng văn bản dễ đọc
+    + %pr: in dải địa chỉ bắt đầu và kết thúc của tài nguyên phần cứng
+    + %pa: hiển thị địa chỉ vật lý
+    + %pe: in ra mã lỗi
+    + xem thêm tại: `https://www.kernel.org/doc/html/latest/core-api/printk-formats.html`
+    + ngoài ra, in ra dữ liệu dưới dạng giống hexdump (mã hex): `print_hex_dump()` 
+## pr_debug() and dev_debug()
+    + Khi driver được compile với DEBUG, tất cả message đều được compile và đều được in. DEBUG được định nghĩa ở đầu driver hoặc dùng `ccflags-$(CONFIG_DRIVER) += -DDEBUG` trong Makefile
+    + Khi kernel được build với `CONFIG_DYNAMIC_DEBUG`, các message có thể được bật/tắt linh hoạt theo từng file, từng module, từng message bằng việc ghi lệnh vào `/proc/dynamic_debug/control`. Mặc định chúng được tắt để tránh hệ thống in log quá nhiều
+        - xem thêm tại `https://www.kernel.org/doc/html/latest/admin-guide/dynamic-debug-howto.html`
+        - rất hữu ích khi muốn chỉ xem những log mình muốn
+    + Khi DEBUG hoặc `CONFIG_DYNAMIC_DEBUG` không được cấu hình, các message debug không được biên dịch vào mã nguồn
+## Configuring the priority
+- Mỗi message đều có độ ưu tiên, được chỉ định trong `include/linux/kern_levels.h`
+- Tất cả message không tính đến độ ưu tiên đều chứa trong kernel log ring buffer, được check bằng lệnh `dmesg`
+- Các message có độ ưu tiên thấp hơn `loglevel` được in ra ngay console
+- loglevel có thể được thay đổi:
+    + trong cấu hình kernel: `CONFIG_CONSOLE_LOGLEVEL_DEFAULT`
+    + trong `bootargs` với `loglevel=`
+    + trong run time thông qua `/proc/sys/kernel/printk`
+- Ví dụ:
+    + loglevel=0: không có message nào được in
+    + loglevel=8: tất cả message đều được in
+## DebugFS
+- DebugFS là 1 virtual filesystem dùng để export thông tin debug tới user space
+- Cần cấu hình trong kernel: `CONFIG_DEBUG_FS`
+- Debug interface sẽ mất khi DebugFS bị tắt
+- Có thể mount DebugFS vào file system của kernel
+    + `sudo mount -t debugfs none /sys/kernel/debug`
+- API được mô tả ở `https://www.kernel.org/doc/html/latest/filesystems/debugfs.html` nhằm tạo các file và thư mục ảo trong /sys/kernel/debug để đọc ghi dữ liệu để check log
+## DebugFS API
+- Tạo sub-folder cho driver
+    + `struct dentry *debugfs_create_dir(const char *name, struct dentry *parent);`
+- Expose 1 số nguyên vào 1 file trong DebugFS, tức là số đó thay đổi thì giá trị trong file tự cập nhật theo
+    + `struct dentry *debugfs_create_u8(const char *name, mode_t mode, struct dentry *parent, u8 *value);`
+    + _u8 có thể thay bằng: u16, u32, u64 hoặc x8, x16, x32, x64
+- Expose 1 vùng chứa nhị phân ra file trong DebugFS
+    ```c
+    `struct dentry *debugfs_create_blob(const char *name, mode_t mode,
+                                        struct dentry *parent,
+                                        struct debugfs_blob_wrapper *blob);
+    ```
+- DebugFS cũng có hàm hỗ trợ các file có thể ghi hoặc custom output bằng hàm `debugfs_create_file()`
+## Using Magic SysRq
+- Đây là chức năng do serial driver cung cấp
+- Cho phép chạy các lệnh debug/rescue ngay cả khi kernel đang bị lỗi, bị treo
+    + Trong terminal của target, picocom chẳng hạn, gõ Ctrl + a -> Ctrl + \ -> gõ 1 trong các ký tự sau:
+        - h: show command
+        - s: sync tất cả mounted filesystems
+        - b: reboot system
+        - n: make Realtime process nice-able
+        - w: show kernel stack của tất cả sleeping processes
+        - t: show kernel stack của tất cả running processes
+        - có thể tạo thêm ký tự của riêng mình
+- Đọc thêm: `https://www.kernel.org/doc/html/latest/admin-guide/sysrq.html`
+## kgdb - A kernel debugger
 
 
 # Kernel resources
