@@ -2280,7 +2280,7 @@ void dma_free_coherent(struct device *dev,
     + ngoài ra, in ra dữ liệu dưới dạng giống hexdump (mã hex): `print_hex_dump()` 
 ## pr_debug() and dev_debug()
     + Khi driver được compile với DEBUG, tất cả message đều được compile và đều được in. DEBUG được định nghĩa ở đầu driver hoặc dùng `ccflags-$(CONFIG_DRIVER) += -DDEBUG` trong Makefile
-    + Khi kernel được build với `CONFIG_DYNAMIC_DEBUG`, các message có thể được bật/tắt linh hoạt theo từng file, từng module, từng message bằng việc ghi lệnh vào `/proc/dynamic_debug/control`. Mặc định chúng được tắt để tránh hệ thống in log quá nhiều
+    + Dynamic debug: Khi kernel được build với `CONFIG_DYNAMIC_DEBUG`, các message có thể được bật/tắt linh hoạt theo từng file, từng module, từng message bằng việc ghi lệnh vào `/proc/dynamic_debug/control`. Mặc định chúng được tắt để tránh hệ thống in log quá nhiều
         - xem thêm tại `https://www.kernel.org/doc/html/latest/admin-guide/dynamic-debug-howto.html`
         - rất hữu ích khi muốn chỉ xem những log mình muốn
     + Khi DEBUG hoặc `CONFIG_DYNAMIC_DEBUG` không được cấu hình, các message debug không được biên dịch vào mã nguồn
@@ -2314,7 +2314,7 @@ void dma_free_coherent(struct device *dev,
                                         struct dentry *parent,
                                         struct debugfs_blob_wrapper *blob);
     ```
-- DebugFS cũng có hàm hỗ trợ các file có thể ghi hoặc custom output bằng hàm `debugfs_create_file()`
+- DebugFS cũng có hàm hỗ trợ các file có thể ghi hoặc custom output bằng hàm `debugfs_create_file()`, `debugfs_create_atomic_t()`
 ## Using Magic SysRq
 - Đây là chức năng do serial driver cung cấp
 - Cho phép chạy các lệnh debug/rescue ngay cả khi kernel đang bị lỗi, bị treo
@@ -2328,6 +2328,61 @@ void dma_free_coherent(struct device *dev,
         - có thể tạo thêm ký tự của riêng mình
 - Đọc thêm: `https://www.kernel.org/doc/html/latest/admin-guide/sysrq.html`
 ## kgdb - A kernel debugger
+- Bật `CONFIG_KGDB` trong kernel
+- Khi dùng kgdb, việc thực thi của kernel sẽ hoàn toàn được điều khiển bởi gdb từ 1 máy tính khác, kết nối qua đường truyền serial
+- Có thể làm được nhiều thứ, bao gồm đặt breakpoint trong interrupt handler
+- Hỗ trợ nhiều kiến trúc CPU
+- `CONFIG_GDB_SCRIPTS` cho phép build GDB python script mà được cung cấp bởi kernel
+- Đọc thêm `https://www.kernel.org/doc/html/latest/process/debugging/kgdb.html`
+## Using kgdb
+- Cần phải có 1 kdbg I/O driver để máy tính bên ngoài debug được. 
+- 1 trong số các driver là kdbg qua cổng serial nối tiếp (kgdboc: kgdb over console, kích hoạt bằng `CONFIG_KGDB_SERIAL_CONSOLE`)
+- Cấu hình `kgdboc` tại thời điểm boot bằng cách thêm vào `bootargs`:
+    + `kgdboc=<tty-device>,<bauds>`
+    + `kgdboc=ttyS0,115200`
+- Hoặc cấu hình `kgdboc` lúc runtime bằng các dùng sysfs:
+    + `echo ttyS0 > /sys/module/kgdboc/parameters/kgdboc`
+    + nếu consile không có cơ chế polling, lệnh này sẽ trả lỗi
+- Sau đó, truyền tham số `kgdbwait` vào kernel để `kgdb` chờ kết nối của debugger
+- Boot kernel, và khi console được khởi tạo, ngắt kernel bằng 1 ký tự break (có thể là nhấn Enter như UBoot) rồi gửi `g` tới serial
+- Ở máy host
+    + start gdb: `arm-linux-gdb ./vmlinux`
+    + `(gdb) set serial baud 115200`
+    + `(gdb) target remote /dev/ttyS0`
+- Khi đã connect, có thể debug kernel theo như cách debug 1 app
+- Ở GDB, thread đầu tiên đại diện cho CPU context (ShadowCPU<X>), các thread sau đó đại diện cho 1 task
+## Debugging with a JTAG interface
+- Có 2 loại JTAG dongles
+    + Loại cung cấp giao diện tương thích với gdb thông qua cổng serial port hoặc Ethernet. gdb có thể kết nối trực tiếp đến chúng
+    + Loại không cung cấp giao diện tương thích với gdb thường được hỗ trợ bởi OpenOCD
+        - OpenOCD là cầu nối giữa ngôn ngữ debug gdb và JTAG interface của target CPU
+        - Tài liệu OpenOCD: `https://openocd.org/pages/documentation.html`
+        - Với mỗi board, cần 1 file cấu hình OpenOCD
+            + ![alt text](images/image-88.png)
+## Early traces
+- Nếu có lỗi xảy ra trước khi serial driver, tty layer được đăng ký, ta sẽ chỉ nhìn thấy "Starting kernel..." chứ không thấy gì nữa, vì vậy khó để biết nguyên nhân do gì
+- Ở kiến trúc ARM, active early trace bằng `CONFIG_DEBUG_LL` và `CONFIG_EARLY_PRINTK` và thêm `earlyprintk` vào kernel command line (bootargs)
+- Ở nền tảng khác, dùng `CONFIG_SERIAL_EARLYCON`
+## More kernel debugging tips
+- Bật `CONFIG_KALLSYMS_ALL` được bật để nhận được message lỗi với tên ký hiệu thay vì raw address khó đọc
+- Bật `CONFIG_DEBUG_INFO` để kernel được biên dịch với tham số -g: `$(CROSSCOMPILE)gcc -g`, giúp giữ lại các dòng code debug, thông tin debug trong file binary output
+- Nếu driver không chạy hàm probe() khi load device, bật `CONFIG_DEBUG_DRIVER` để nó bật tất cả debug log trong các file device-driver core của Linux để dễ dàng check vì sao không chạy probe() được
+- Với device tree, có thể xem được từng dòng cấu hình xuất phát từ node nào ở dtsi nào, giúp dễ tìm hơn bằng cách chạy `scripts/dtc/dtx_diff -T <dts>`
+    + ![alt text](images/image-89.png)
+    + cũng có thể dùng để so sánh sự khác nhau giữa các file diff
+## Thực hành
+- Để thấy được log của dev_dbg(), ... cần cấu hình kernel `CONFIG_DYNAMIC_DEBUG` để thấy log debug, `CONFIG_DEBUG_INFO` in ra được log trong code kernel
+- Thêm `loglevel=8` trong bootargs trong UBoot để in message debug ra console, nếu không thì chỉ có thể thấy chúng trong `dmesg`
+- Bật log debug cho module mình muốn
+    + `echo "file serial.c +p" > /sys/kernel/debug/dynamic_debug/control` bật cho toàn bộ file
+    + `echo "file serial.c line 253 +p" > /sys/kernel/debug/dynamic_debug/control` bật cho 1 dòng cụ thể
+- Khi driver bị crash, nhìn vào thanh ghi PC để biết crash ở hàm nào
+    + Ví dụ `PC is at mmioset+0x50/0xac` vì lỗi xảy ra ở hàm mmioset với vị trí offset là 0x50 trong tổng kích thước 0xac của hàm này
+- Debug tìm nguyên nhân crash
+    + Nếu crash ở hàm của linux, dùng `gdb-multiarch vmlinux`, nếu crash ở hàm của module, dùng `gdb-multiarch module.o`
+    + (gdb) set arch arm
+    + (gdb) set gnutarget elf32-littlearm
+    + (gdb) disassemble function_name 
 
 
 # Kernel resources
