@@ -118,3 +118,113 @@ int main(int argc, char *argv[]){
 - Có thể thay đổi user id và group id
     + setgid(...)
     + setuid(...)
+
+# Signal
+## tổng quan signal
+- signal là software interrupt
+- hệ điều hành sẽ cung cấp 1 bảng chứa các signal gọi là signal table, sau khi đăng ký signal xong, nếu process nhận được signal, hệ điều hành sẽ gọi ra hàm để xử lý signal
+- khi nhận signal, process sẽ dừng việc đang làm lại để ưu tiên xử lý signal
+## các trường hợp xảy ra signal
+- User dùng lệnh kill
+- Process gửi signal
+- Chương trình gặp lỗi: crash, truy cập null
+- User nhấn ctrl + c hoặc tổ hợp phím khác -> gửi interupt signal tới process đang chạy
+## Phân loại signal
+- Signal có thể ignore
+- Signal không thể ignore
+- Signal có thể chủ động điều khiển được
+- Signal không thể chủ động điều khiển được
+## Signal table
+- Mỗi process có 1 signal table
+- Mỗi ô trong bảng sẽ lưu trữ địa chỉ trỏ tới hàm signal handler
+- Khi signal được gửi tới process, nó sẽ check xem signal đó được đăng ký tới signal table hay chưa, rồi gọi signal handler nếu có
+### Đăng ký signal handler
+- thư viện /linux/signal.h
+- define hàm signal handler: `void sig_handler(int signo)`
+- đăng ký signal handler với OS: `sighandler_t signal(int signum, sighandler_t handler)`
+### Gửi signal
+- `int kill(pit_t pid, int signo)`
+- 1 số signal được gửi tới process
+    + SIGCHLD: process con gửi tới cha khi con kết thúc
+    + SIGILL: được gửi khi truy cập vùng nhớ k hợp lệ
+    + SIGINT: khi nhấn ctrl + c
+    + SIGKILL: khi nhận termante
+    + SIGSEGV: liên quan memory
+### Cách ignore 1 signal
+- khi 1 signal bị ignore, thì process sẽ không gọi ra signal handler nữa
+- `signal(signal_number, SIG_IGN)`
+### Cách pending 1 signal
+- đôi khi trong 1 thời điểm, ta tạm thời không muốn xử lý 1 số signal nào đó. Signal vẫn được gửi tới process nhưng sẽ nằm trong hàng chờ, không được xử lý ngay
+- để block signal, cần tạo 1 mask có số ô bằng với signal table, mỗi ô sẽ có bit 0(unblock) hoặc 1(block) để khi nào cần block signal, ta sẽ 0/1 cho mask table đó rồi mask table parse tương ứng qua từng ô ở signal table. Ô nào ở signal table nhận 1 thì signal đó tạm thời bị block
+- `int sigfillset(sigset_t *set)`: bật tất cả ô của mask lên 1
+- `int sigemptyset(sigset_t *set)`: bật tất cả ô của mask về 0
+- `int sigaddset(sigset_t *set, int signo)`: bật 1 ô trong mask lên 1
+- `int sigdelset(sigset_t *set, int signo)`: bật 1 ô trong mask về 0
+- signo là enum của các signal như SIGINT, SIGCHILD, thể hiện minh muốn set để block/unblock signal nào
+- Sau khi tạo mask xong, cần map mask đó qua signal table
+    + `int sigprocmask(int how, const sigset_t *set, sigset_t *oldset)`
+        - how: SIG_BLOCK (block tất cả signal có ô mask giá trị 1), SIG_UNBLOCK, SIG_SETMASK (lấy data của signal table rồi cập nhật vào sigset_t *set)
+        - oldset: lưu lại mask cũ
+- code mẫu: `phuluuan/signal/main.c`
+### Cách kiểm tra signal đang bị pending
+- `int sigpending(sigset_t *set)`, nếu không có signal nào đang pending thì trả về 0
+- signal đang bị pending thì kernel vẫn gửi nó cho process nhưng signal đó sẽ được đưa vào hàng đợi chờ xử lý
+
+# Lập trình multithread
+## Tạo mới 1 thread
+- inclue pthread.h
+-   ```c
+    int pthread_create(pthread_t *restrict thread,
+                          const pthread_attr_t *_Nullable restrict attr,
+                          typeof(void *(void *_Nullable)) *start_routine,
+                          void *_Nullable restrict arg);
+    ```
+    + return 0 nếu OK, error number nếu lỗi
+## Kết thúc 1 thread
+- Cách chủ động: 
+    + gọi return trong thread
+    + pthread_exit(...)
+- Cách bị động:
+    + pthread_cancel(pthread_t tid)
+- Sau khi thread kết thúc, cần gọi `pthread_join(...)` để giải phóng tài nguyên cho thread, hàm này sẽ block cho tới khi thread cần đợi kết 
+- Nếu 1 thread bị crash/lỗi thì tất cả thread cùng process sẽ bị terminate
+- Example:
+    ```c
+    #include <pthread.h>
+    #include <stdio.h>
+
+    void *my_thread (void *arg)
+    {
+        printf("Hello world %s\n", (char*) arg);
+        return arg;
+    }
+
+    void main()
+    {
+        pthread_t thread1;
+        pthread_t thread2;
+        char a[100] = { 0 };
+        memset(a, 0, sizeof(a));
+        pthread_create(&thread1, NULL, my_thread, "Phu");
+        pthread_create(&thread2, NULL, my_thread, "Phong");
+        pthread_join(thread1, (void *)&a);
+        printf("thread 1 return %s\n", a); // a là giá trị return từ my_thread
+        pthread_join(&thread2, (void *)&a);
+    }
+    ```
+- Khi build cần thêm -lpthread vào gcc
+## Bất đồng bộ dữ liệu giữa các thread
+ dùng mutex để khóa data giữa các thread
+    + `int pthread_mutex_init(pthread_mutex_t *restrict mutex, const pthread_mutexattr_t *restrict attr)`: khởi tạo 1 mutex
+    + `int pthread_mutex_destroy(pthread_mutex_t *mutex)`: hủy mutex đó
+    + `int pthread_mutex_lock(pthread_mutex_t *mutex)`: lock mutex. Nếu mutex đang bị thread khác lock thì chương trình sẽ bị block ở đây chờ cho tới khi mutex được unlock
+    + `int pthread_mutex_unlock(pthread_mutex_t *mutex)`: unlock mutex
+    + `int pthread_mutex_trylock(pthread_mutex_t *mutex)`: nếu mutex đang bị lock, nếu đang bị lock thì sẽ trả về luôn, không bị block thread, nếu chưa lock thì lock luôn
+- dùng Semaphore:
+    + có nhiều khóa, 1 thời điểm có thể có nhiều thread chiếm được lock
+    + `sem_t sem_name`
+    + `int sem_init(sem_t *sem, int pshared, unsigned int value)`: value: tạo ra số lượng khóa
+    + `int sem_wait(sem_t *sem)`: lấy khóa còn khả dụng trong số khóa được tạo
+    + `int sem_post(sem_t *sem)`: trả lại khóa khi dùng xong
+    + `int sem_destroy(sem_t *sem)`
+- 56:22
