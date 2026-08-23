@@ -227,4 +227,10 @@ int main(int argc, char *argv[]){
     + `int sem_wait(sem_t *sem)`: lấy khóa còn khả dụng trong số khóa được tạo
     + `int sem_post(sem_t *sem)`: trả lại khóa khi dùng xong
     + `int sem_destroy(sem_t *sem)`
-- 56:22
+- Ví dụ khi cần semaphore:
+    + Card mạng cho phép truyền 1GB/s
+    + Mỗi device có thể truyền nhận qua card mạng đó 100MB/s
+    + nếu dùng mutex thì mỗi thời điểm chỉ có 1 device truyền nhận được, sẽ bị phí 900MB/s
+    + vậy dùng semaphore tạo 10 key, mỗi key cho 1 device thì sẽ chia sẻ được 1GB/s đó cho 10 device
+
+# Socket programming
