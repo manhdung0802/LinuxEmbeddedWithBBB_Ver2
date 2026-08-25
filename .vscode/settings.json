@@ -8,10 +8,24 @@
         "**/modules.order": true,
         "**/Module.symvers": true,
         "**/.clangd": true,
-        "**/.cache": true
+        "**/.cache": true,
+        "**/node_modules": true,
+        "**/dist": true,
     },
     "files.watcherExclude": {
-        "**/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/**": true
+        "**/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/**": true,
+        "**/.git/objects/**": true,
+        "**/.git/subtree-cache/**": true,
+        "**/node_modules/*/**": true,
+        "**/arch/x86/**": true,
+        "**/arch/mips/**": true,
+        "**/arch/powerpc/**": true,
+        "**/documentation/**": true,
+        "**/tools/**": true,
+        "**/node_modules/**": true,
+        "**/dist/**": true,
+        "**/build/**": true,
+        "**/.vscode/**": true
     },
     "[c]": {
         "editor.tabSize": 4,
@@ -21,6 +35,7 @@
     "markdown.copyFiles.destination": {
         "**/*": "images/"
     },
+    "git.autorefresh": false,
     "markdown.copyFiles.overwriteBehavior": "nameIncrementally",
     "gnuGlobal.objDir": "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux",
     "C_Cpp.default.compilerPath": "/home/as/x-tools/arm-bootlin-linux-gnueabihf/bin/arm-bootlin-linux-gnueabihf-gcc"
