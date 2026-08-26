@@ -252,3 +252,53 @@
         - kết quả sẽ là `IMAGE_INSTALL = "busybox mtd-utils dropbear i2c-tools"` nếu machine được chỉ động là `beaglebone`
         - nếu không thì kết quả là IMAGE_INSTALL = "busybox mtd-utils dropbear"
 ## Virtual provides
+- đặt vấn đề: có thể có nhiều recipe có chung chức năng nhưng mỗi thời điểm chỉ có thể dùng được 1
+- để giải quyết, bitbake sử dụng cơ chế `virtual providers` để tạo 1 tên gọi chung cho chức năng đó
+- Khi build, chỉ có 1 recipe được lựa chọn để đáp ứng nhu cầu và tích hợp vào image
+### Variant examples
+- virtual provider thường có tên theo dạng `virtual/<name>`
+- Ví dụ:
+    + virtual/bootloader: u-boot, u-boot-ti-staging
+    + virtual/kernel: linux-yocto, linux-yocto-tiny, linux-yocto-rt
+    + virtual/libc: glibc, musl, newlib
+    + virtual/xserver: xserver-xorg
+### Provider selection
+- virtual provider được cấu hình qua biến `PREFERRED_PROVIDER` (thêm suffix này vào trước)
+- Ví dụ:
+    + `PREFERRED_PROVIDER_virtual/kernel ?= "linux-ti-staging"`
+    + `PREFERRED_PROVIDER_virtual/libgl = "mesa"`
+### Version selection
+- mặc định, bitbake sẽ build recipe có phiên bản cao nhất từ layer có độ ưu tiên cao nhất trừ khi recipe có set `DEFAULT_PREFERENCE = "-1"`
+- khi có nhiều phiên bản recipe khả dụng, ta có thể chọn đích danh 1 phiên bản với `PREFERRED_VERSION`
+- ví dụ:
+    + `PREFERRED_VERSION_nginx = "1.20.1"`
+    + `PREFERRED_VERSION_linux-yocto = "5.14%"` (%: chỉ định nhóm version 5.14.x)
+## Selection of packages to install
+- Việc build recipe sẽ tạo ra các gói binary
+- số lượng pkg được cài vào image được phụ thuộc vào target mình chọn (core-image-minimal, ...)
+- ta có thể tự custom các pkg muốn cài vào image
+- Trong quá trình debug hoặc phát triển, có thể thêm pkg mà không cần sửa recipe
+- packages được quyết định bởi biến `IMAGE_INSTALL`
+## The power of BitBake
+### Common BitBake options
+- Bitbake có thể dùng để build toàn bộ cho 1 target với lệnh `bitbake [target]`
+    + target: là tên của recipe
+    + ví dụ: `bitbake ncurses`, `bitbake ncurses-native`
+- Có thể chèn thêm các optione
+    + `-c <task>`: thực thi task
+    + `-s`: liệt kê các recipe khả dụng và version của nó
+    + `-f`: buộc task phải chạy
+    +`world`: build tất cả recipes
+- ví dụ:
+    + `bitbake -c listtasks virtual/kernel`: liệt kê các task khả dụng cho gói `virtual/kernel`
+    + `bitbake -c menuconfig virtual/kernel`: thực thi task `menuconfig` cho recipe `virtual/kernel`
+    + `bitbake -f dropbear`: buộc recipe dropbear phải chạy tất cả các task của nó
+    + `bitbake --runall=fetch core-image-minimal`: tải tất cả recipe source và dependence của chúng
+    + `bitbake --help`
+### shared state cache
+- bitbake chứa output của mỗi task vào 1 đường dẫn, gọi là shared state cache
+- shared state cache dùng để tăng tốc biên dịch
+- đường dẫn của shared state cache được define bởi biến `SSTATE_DIR` và mặc định ở `build/sstate-cache`
+- có thể xóa state cache bằng cách `find sstate-cache/ -type f -atime +30 -delete` (xóa các file không được truy cập quá 30 ngày)
+
+## Thực hành 
