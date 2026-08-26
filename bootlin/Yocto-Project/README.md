@@ -163,6 +163,7 @@
 - Biến được định nghĩa trong `Configuration Files (*.conf)` có scope là global
 - Biến được định nghĩa trong `Recipes (*.bb, .bbappend, .bbclass)` có scope là local
 - Các recipe có thể truy cập biến global
+- **Expansion time**: là thời điểm mà hệ thống thực sự đọc giá trị cuối cùng của biến, thay vì thời điểm khai báo biến đó
 ### Operators: 
 - basic assignment
     - `VAR = "value"`
@@ -210,4 +211,44 @@
 ### bitbake-getvar
 - bitbake-getvar được dùng để hiểu và debug biến
 - nó liệt kê được các file có cấu hình giá trị biến, kể cả giá trị trước và cuối cùng
-- `bitbake-getvar <VARIABLE>`
+- `bitbake-getvar <VARIABLE>`: hiển thị giá trị của biến global scope
+- `bitbake-getvar -r <recipe> <VARIABLE>`: hiển thị giá trị của biến local scope trong recipe
+### overrides
+- Cơ chế override của Bitbake cho phép append, prepend hoặc modify giá trị của 1 biến tại thời điểm Expansion time, khi giá trị của biến thực sự được đọc
+- Cú pháp override: `<VARIABLE>:<override> = "value"`
+- Override để modify giá trị của biến
+    + thêm giá trị vào cuối biến (không có space)
+        - `IMAGE_INSTALL:append = " dropbear"`
+    + thêm giá trị vào đầu biến (không có space)
+        - `PATH:prepend = "home/as/:"`
+    + xóa giá trị khỏi biến
+        - `IMAGE_INSTALL:remove = "i2c-tools"`
+### Order of variable assignment
+- ![alt text](images/image-10.png)
+- Thứ tự khi gán giá trị cho biến
+    + các toán tử sẽ gán giá trị trước
+    + các toán tử append, prepend, remove sẽ thay đổi giá trị của biến theo thứ tự append đổi trước, prepend tiếp theo, cuối cùng là remove bất kể thứ tự dòng code là gì
+### Overrides for conditional asignment
+- Khi khai báo 1 biến `OVERRIDES="dung:manh:mai" thì nếu biến chứa 1 trong các string này, có thể gán giá trị dựa theo string đó
+- Ví dụ ![alt text](images/image-11.png)
+    + `OVERRIDES` định nghĩa các giá trị cho phép
+    + Biến KERNEL_DEVICETREE sẽ thay đổi giá trị tùy vào chuỗi trong `OVERRIDES`
+    + giá trị của `OVERRIDES` do hệ thống sinh ra dựa theo kiến trúc cpu
+- precedence: độ ưu tiên của các lệnh gán giá trị
+    + lệnh nào càng chi tiết cụ thể về target, lệnh đó sẽ được ưu tiên hơn
+    + ví dụ nếu khai báo:
+    ```c
+    IMAGE_INSTALL:beaglebone = "busybox mtd-utils i2c-tools"
+    IMAGE_INSTALL = "busybox mtd-utils
+    ```
+        - hệ thống nhận thấy lệnh `IMAGE_INSTALL:beaglebone` cụ thể hơn cho target nên nó sẽ lấy giá trị của lệnh này và bỏ qua lệnh dưới
+- combining overrides: kết hợp các phương thức override
+    + nếu ra có lệnh 
+    ```c
+    IMAGE_INSTALL = "busybox mtd-utils"
+    IMAGE_INSTALL:append = " dropbear"
+    IMAGE_INSTALL:append:beaglebone = " i2c-tools"
+    ```
+        - kết quả sẽ là `IMAGE_INSTALL = "busybox mtd-utils dropbear i2c-tools"` nếu machine được chỉ động là `beaglebone`
+        - nếu không thì kết quả là IMAGE_INSTALL = "busybox mtd-utils dropbear"
+## Virtual provides
