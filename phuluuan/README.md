@@ -119,7 +119,7 @@ int main(int argc, char *argv[]){
     + setgid(...)
     + setuid(...)
 
-# Signal
+# Signal trong user space
 ## tổng quan signal
 - signal là software interrupt
 - hệ điều hành sẽ cung cấp 1 bảng chứa các signal gọi là signal table, sau khi đăng ký signal xong, nếu process nhận được signal, hệ điều hành sẽ gọi ra hàm để xử lý signal
@@ -170,7 +170,7 @@ int main(int argc, char *argv[]){
 - `int sigpending(sigset_t *set)`, nếu không có signal nào đang pending thì trả về 0
 - signal đang bị pending thì kernel vẫn gửi nó cho process nhưng signal đó sẽ được đưa vào hàng đợi chờ xử lý
 
-# Lập trình multithread
+# Lập trình multithread trong userspace
 ## Tạo mới 1 thread
 - inclue pthread.h
 -   ```c
@@ -233,4 +233,39 @@ int main(int argc, char *argv[]){
     + nếu dùng mutex thì mỗi thời điểm chỉ có 1 device truyền nhận được, sẽ bị phí 900MB/s
     + vậy dùng semaphore tạo 10 key, mỗi key cho 1 device thì sẽ chia sẻ được 1GB/s đó cho 10 device
 
-# Socket programming
+# Socket programming (với network) trong userspace
+- Socket là các file ở dạng endpoint, khi ghi data vào 1 đầu thì data sẽ được gửi sang 1 hoặc nhiều đầu khác
+- Socket sẽ chỉ định cho hệ điều hành biết rằng data đưa vào file đó có thể đi ra khỏi hệ thống
+- include <sys/socket.h>
+- Khi gửi bản tin ra khỏi hệ thống, cần quan tâm big enbian hay little endian. Trong network, data cần theo chuẩn big-endinan
+- các bước lập trình với socket
+    + Phía server: ![alt text](images/image-1.png)
+    + Phía client: ![alt text](images/image-4.png)
+    + tạo socket: `int socket(int domain, int type, int protocol)`
+        - giá trị trả về là fd giống như file
+        - domain: define chung về phương thức giao tiếp
+        - type: cách truyền dữ liệu
+        - protocol: chuẩn giao tiếp
+    + chuẩn bị data
+        - cần chuẩn bị dữ liệu chung trong network để tất cả có thể hiểu
+        - hàm convert địa chỉ ip/port của máy tính sang big-endian của network
+            + uint32_t htonl(uint32_t hostint32)
+            + uint16_t ntohs(uint16_t netint16)
+            + inet_addr("192.168.x.x"): hàm này convert ra kiểu số nguyên để truyền vào 2 hàm trên
+        - khởi tạo struct `socketadd_in` chứa address, port cho socket
+        - gán địa chỉ ip cho socket: để khi data truyền tới socket đó, data đó sẽ được đính kèm địa chỉ ip đó vào
+            + `int bind(int sockfd, const struct sockaddr *addr, socklen_t len)`
+    - thiết lập kết nối: cần xác định máy nào làm server, máy nào làm client
+        + từ phía client, xin kết nối: `int connect(int sockfd, const struct sockaddr *addr, socklen_t len)`
+            - sockfd là socket phía client khởi tạo 
+            - client sau đó giao tiếp qua 1 socket duy nhất
+        + từ phía server: `int listen(int sockfd, int backlog)`
+            - sockfd là socket phía server khởi tạo
+            - hàm này tạo ra 1 hàng đợi có số ô bằng số backlog, mỗi khi có 1 requets được gửi từ client, requets đó được đưa vào 1 ô 
+            - ![alt text](images/image-3.png)
+            - sau đó server gọi hàm `accept` để tạo 1 connection socket cho từng requets (point-to-point), nếu có 10 request thì tạo 10 connection socket mới. Server cần tạo ra nhiều socket cho mỗi client để cùng 1 lúc server nhận được dữ liệu từ nhiều client
+            - sau đó dùng các hàm đọc ghi
+    + Tóm tắt lại:
+        - ![alt text](images/image-5.png)
+- ứng dụng: có thể viết chương trình truyền nhận file giữa 2 máy tính
+- 38:42
