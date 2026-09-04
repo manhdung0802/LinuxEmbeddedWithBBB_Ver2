@@ -321,7 +321,7 @@
     + Recipe là 1 danh sách các lệnh để lấy, patch, biên dịch, cài đặt và tạo gói binary
     + Recipe cũng định nghĩa các dependencies nào được build cùng hoặc chạy cùng trong runtime
     + Format file recipe: `<recipename>_<version>.bb`
-    + Output của 1 recipe là các gói binary: <recipename>, <recipename>-doc, <recipename>-dbg, ...
+    + Output của 1 recipe là các gói binary: `<recipename>, <recipename>-doc, <recipename>-dbg, ...`
 - Nội dung chứa trong recipe
     + các biến cấu hình: name, license, dependencies, path của source code
     + các function được chạy để gọi thực thi các task (fetch, configure, compile, ...)
@@ -332,3 +332,24 @@
         - BPN: tên của recipe được lấy từ recipe file name
         - PN: là BPN đi kèm tiền số (nativesdk-) hoặc hậu tố (-native)
         - PV: version của pkg được lấy từ recipe file name
+        - BP: ${BPN}-${PV}
+    + tên và version của recipe thường khớp với tên và version của mã nguồn
+    + ví dụ: dùng recipe `bash_5.1.bb` thì `bash` là BPN, `5.1` là PV
+## Organization of a recipe
++ ![alt text](images/image-13.png)
++ Nhiều ứng dụng có nhiều hơn 1 recipe để hỗ trợ nhiều phiên bản. Để tránh bị lặp mã nguồn, những common metadata được đưa vào file `.inc`
+    - `<application>.inc`
+    - `<application>_<version>.bb` thường chứa `require <application>.inc`
++ Có thể chia recipe ra làm 3 phần chính
+    - header: what/who
+    - sources: where
+    - task: how
++ Header của recipe: 
+    - có các biến cấu hình như sau:
+        + `SUMMARY`: mô tả ngắn cho pkg
+        + `DESCRIPTION`: mô tả software này làm gì
+        + `HOMEPAGE`: URL tới trang chủ của project
+        + `SECTION`: danh mục các gói
+        + `LICENSE`: bản quyền
++ The source locations: overview
+    - 
