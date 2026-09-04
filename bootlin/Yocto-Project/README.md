@@ -314,3 +314,21 @@
 
 # Writing recipes - basics
 ## Recipes: overview
+- ![alt text](images/image-12.png)
+    + .bbappend: là file mở rộng của .bb
+    + .inc: như file header để các file .bb include
+- 1 recipe mô tả cách để xử lý các thành phần phần mềm (app, lib, ...)
+    + Recipe là 1 danh sách các lệnh để lấy, patch, biên dịch, cài đặt và tạo gói binary
+    + Recipe cũng định nghĩa các dependencies nào được build cùng hoặc chạy cùng trong runtime
+    + Format file recipe: `<recipename>_<version>.bb`
+    + Output của 1 recipe là các gói binary: <recipename>, <recipename>-doc, <recipename>-dbg, ...
+- Nội dung chứa trong recipe
+    + các biến cấu hình: name, license, dependencies, path của source code
+    + các function được chạy để gọi thực thi các task (fetch, configure, compile, ...)
+    + các task cung cấp các lệnh để thực thi
+    + lệnh thực thi task cụ thể: `bitbake -c <task> <target>`
+- Common variables
+    + để giúp việc viết recipe dễ dàng hơn, 1 số biến tự động có sẵn:
+        - BPN: tên của recipe được lấy từ recipe file name
+        - PN: là BPN đi kèm tiền số (nativesdk-) hoặc hậu tố (-native)
+        - PV: version của pkg được lấy từ recipe file name
