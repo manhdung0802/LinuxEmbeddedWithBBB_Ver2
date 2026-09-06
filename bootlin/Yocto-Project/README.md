@@ -352,4 +352,185 @@
         + `SECTION`: danh mục các gói
         + `LICENSE`: bản quyền
 + The source locations: overview
-    - 
+    - Ta cần lấy source từ nguồn chính thức và cả các nguồn khác để có thể cấu hình, vá, hoặc cài app
+    - `SRC_URI`: là biến định nghĩa nơi lấy và cách lấy source. Nó là danh sách các URI trỏ tới resource (local hoặc remote)
+    - URI syntax: `scheme://url;param1;param2`
+        + `scheme`: mô tả file local bằng `file://` hoặc remote bằng `https://`, `git://`, ....
+    - Mặc định, source được fetch về trong folder `build/downloads`, có thể thay đổi đường dẫn này bằng biến `DL_DIR` trong `conf/local.conf`
++ The source locations: remote files
+    - Đối với các giao thức `http`, `https`, `ftp`:
+        + `https://example.com/application-1.0.tar.bz2`
+        + 1 số biến giúp trỏ tới các remote location lớn như `${SOURCEFORGE_MIRROR}, ${GNU_MIRROR}, ${KERNELORG_MIRROR}…`
+        + Ví dụ: `${SOURCEFORGE_MIRROR}/<project-name>/${BPN}-${PV}.tar.gz`
+        + các biến này cấu hình trong `meta/conf/bitbake/conf`
+    - Đối với git
+        + `git://<url>;protocol=<protocol>;branch=<branch>`
+        + Khi dùng git, cần define `SRCREV`, giá trị của `SRVREV` là 1 commit hash cụ thể chứ không được dùng kiểu tag `v1.0`
+        + tham số `branch` là bắt buộc để bitbake kiểm tra commit trong `SRVREV` có nằm trên branch đó không
+    - Giá trị `checksum` cần được cung cấp để khi đảm bảo tính toàn vẹn của file khi dùng với `http, https, ftp`
+        + `SRC_URI[sha256sum] = "5891b5b522d..."`
+    - Có thể dùng nhiều checksum cho nhiều file bằng cách dùng tham số `name`
+        ```c
+        SRC_URI = "http://example.com/src.tar.bz2;name=tarball \
+                   http://example.com/fixes.patch;name=patch"
+        SRC_URI[tarball.sha256sum] = "97b2c3fb082241ab5c56..."
+        SRC_URI[patch.sha256sum] = "b184acf9eb39df794ffd..."
+        ```
++ The source locations: local files
+    - Khai báo `SRC_URI` dùng `file://`
+    - các file local này sẽ được copy từ layer vào thư mục `work`
+    - đường dẫn tìm kiếm file được định nghĩa trong biến `FILESPATH`
+    - `FILESPATH` là danh sách các đường dẫn để tìm kiếm các file
+    - thứ tự đường dẫn trong `FILESPATH` rất quan trọng, khi file đã được tìm thấy trong 1 path, việc tìm kiếm sẽ dừng
+    - `FILESPATH`:
+        + là sự kết hợp của `FILE_DIRNAME` (chứa các .bb file) và các hậu tố đi kèm như sau:
+            - ${FILE_DIRNAME}/${BP}
+            - ${FILE_DIRNAME}/${BPN}
+            - ${FILE_DIRNAME}/files
+            - ${FILE_DIRNAME}
+        + có thể ghi đè đường dẫn bằng biến `FILESOVERRIDES`    
+            - `${TRANSLATED_TARGET_ARCH}:${MACHINEOVERRIDES}:${DISTROOVERRIDES}`
+            - ví dụ: `arm:armv7a:ti-soc:ti33x:beaglebone:poky` - hệ thống sẽ tìm từ phải qua trái
+                + khi áp dụng tạo đường dẫn như trên, bitbake sẽ ưu tiên kiểm tra các đường dẫn `FILE_DIRNAME` dưới đây theo thứ tự trừ trên xuống
+                + ![alt text](images/image-14.png)
+        + Cơ chế trên giúp yocto dùng chung 1 file .bb mà vẫn cấu hình được nhiều file mã nguồn khác nhau
+        + ví dụ: `SRC_URI += "file://defconfig`
+            - ta không cần chỉ rõ defconfig ở thư mục nào
+            - nhờ vào thứ tự ưu tiên từ phải qua trái, bitbake có thể tìm được defconfig phù hợp với giá trị của `MACHINE`
+            - ![alt text](images/image-15.png)
++ The source locations: tarballs - file nén
+    - khi giải nén 1 file nén, bitbake mặc định ghi nhận đường dẫn đã giải nén nằm ở thư mục tên là `<application>-<version>` do biến `S` định nghĩa, nếu muốn thay đổi đường dẫn, cần thay đổi giá trị biến `S`
+    - Nếu là git, `S` cần set là `${WORKDIR}/git`
++ The source locations: license files
+    - các file license cần có checksum của nó
+    - `LIC_FILES_CHKSUM`: khai báo URI trỏ tới file license và checksum của nó trong source code
+    ```c
+    LIC_FILES_CHKSUM = "file://gpl.txt;md5=393a5ca..."
+    LIC_FILES_CHKSUM = "file://main.c;beginline=3;endline=21;md5=58e..."
+    LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=083..."
+    ```
+    - nếu license thay đổi, quá trình build sẽ báo lỗi vì checksum không còn khả dụng
++ Dependencies
+    - 1 recipe có thể có nhiều dependencies trong quá trình build hoặc runtime. Để khai báo các yêu cầu dependencies này của recipe, cần dùng 2 biến:
+        + `DEPENDS`: danh sách các dependencies cần lúc build
+        + `RDEPENDS`: danh sách các dependencies cần lúc runtime, phải chỉ rõ package nào (ví dụ thêm `${PN}`)
+        + `DEPENDS = "recipe-b"`: task `do_prepare_recipe_sysroot` phụ thuộc vào task `do_populate_sysroot` của recipe-b
+        + `RDEPENDS:${PN} = "package-b"`: task `do_build` phụ thuộc vào task `do_package_write_<archive-format>` của recipe-b
+    - đôi khi, 1 recipe bị phụ thuộc vào 1 phiên bản cụ thể của 1 recipe khác. Vậy nên bitbake cho phép lựa chọn phiên bản bằng cách
+        + `RDEPENDS:$PN = "recipe-b (>= 1.2)"`
+        + hỗ trợ các toán tử =, >, <, >= và <=
+    - có thể dùng lệnh sau để xem dependencies theo dạng graphical
+        + `bitbake -g -u taskexp core-image-minimal`
++ Tasks
+    - trong recipe luôn tồn tại các task mặc định
+        + do_fetch
+        + do_unpack
+        + do_patch
+        + do_configure
+        + do_compile
+        + do_install
+        + do_package
+        + do_rootfs
+    - Lệnh get danh sách các task của 1 recipe
+        + `bitbake <recipe> -c listtasks`
+- The main tasks
+    + ![alt text](images/image-16.png)
+        - B: thư mục build
+        - D: đường dẫn để cài đặt tạm thời
+- Writing tasks
+    + Cú pháp của 1 task
+        ```c
+        do_task() {
+            action0
+            action1
+            ...
+        }
+        ```
+    + Cú pháp trong recipe dùng các cú pháp shell script tiêu chuẩn, nên ta có thể thêm lệnh linux vào trong script 
+    + Các biến có sẵn
+        - `WORKDIR`: thư mục làm việc của recipe
+        - `S`: đường dẫn chứa source code đã được giải nén
+        - `B`: đường dẫn chứa các object được sinh ra trong quá trình build
+        - `D`: đường dẫn nơi các file, package được cài đặt trước khi tạo image
+        - Ví dụ:
+            ```c
+            do_compile() {
+                oe_runmake
+            }
+            do_install() {
+                install -d ${D}${bindir} //tạo thư mục /usr/bin trong vùng nhớ tạm
+                install -m 0755 hello ${D}${bindir} //copy file hello vào /usr/bin đã tạo với quyền 0755
+            }
+            ```
+            + ${bindir} là /usr/bin
+- Adding new tasks
+    + ta có thể add thêm task bằng `addtask` (theo cách thủ công khi muốn phát triển tính năng mới)
+        ```c
+        do_mkimage () {
+            uboot-mkimage ...
+        }
+        addtask do_mkimage after do_compile before do_install
+        ```
+    + Thông thường, hệ thống tự chọn các task phù hợp để chèn nhanh và chính xác bằng lệnh `inherit <pkg-name>`
+## Applying patches
+- Các trường hợp cần patch (vá) để giải quyết vấn đề
+    + Hỗ trợ version cũ của phần mềm: fix bug, bảo mật
+    + Fix lỗi cross compile
+    + Áp dụng patch trước khi đưa vào bản chính thức (upstream)
+- Tuy nhiên, các trường hợp liên quan Makefile không cần patch.
+    + Ví dụ, Makefile bản chính thức gán cứng CC hoặc CFLAGS. Ta không cần bản vá để sửa giá trị này, mà chỉ cần chạy lệnh make với `-e` để lấy các giá trị được định nghĩa từ môi trường hệ thống
+- The source locations: patches
+    + Các file có đuôi là .patch hoặc .diff hoặc có thuộc tính `apply=yes` đều sẽ được apply vào sau khi source được get và giải nén trong quá trình thực thi tasl `do_patch`
+        - Các patch được nén với .gz, .bz2, .xz hoặc .Z đều được tự động giải nén
+        ```c
+        SRC_URI += "file://joystick-support.patch \
+                    file://smp-fixes.diff \
+                    "
+        ```
+    + Các patch sẽ được apply theo thứ tự khai báo trong SRC_URI
+    + Có thể chọn công cụ để apply patch được khai báo trong SRC_URI bằng biến `PATCHTOOL`. Mặc định, `PATCHTOOL = "quilt"`, các giá trị khác có thể chọn là `git`, `patch`
+- Resolving conflicts
+    + `PATCHRESOLVE` định nghĩa các để xử lý conflict khi apply patch
+    + Có 2 giá trị: 
+        - noop: quá trình build thất bại nếu patch không thể áp dụng thành công
+        - user: xuất hiện shell để tự sửa conflict
+        - giá trị mặc định là `noop` trong `openembedded-core`
+## Example of a recipe
+- ![alt text](images/image-17.png)
+## Ví dụ về 1 recipe có phần không phụ thuộc phiên bản
+- Phần này ví dụ về 1 file khai báo cấu hình dùng chung cho mọi phiên bản phần mềm
+- tar.inc - không phụ thuộc phiên bản
+    + ![alt text](images/image-18.png)
+- tar_1.17.bb, tar_1.25.bb - có phụ thuộc phiên bản
+    + ![alt text](images/image-19.png)
+    + ![alt text](images/image-20.png)
+## Debugging recipes
+- Log và run files
+    + mỗi task đều tạo ra các file này trong folder `temp` trong folder làm việc của recipe (recipe work directory)
+    + `run.do_<taskname>`: script được tạo ra từ nội dung của recipe và thực thi các task
+    + `log.do_<taskname>`: output của việc thực thi task
+    + Có thể đọc các file này để xem task đang làm cái gì
+- Debugging variable assignments
+    + `bitbake-getvar -r ncurses SRC_URI`: in ra giá trị của biến trong recipe
+    + `bitbake -e`: in ra toàn bộ các biến môi trường trong global
+    + `bitbake -e ncurses`: in ra toàn bộ các biến môi trường trong scope của ncurses
+## Thực hành
+- ncurses: là library dùng để xây dựng giao diện GUI từ text chạy trực tiếp từ terminal
+- nếu tên của 1 recipe là abc_1.0.0.bb thì lệnh bitbake để run recipe này là `bitbake abc`
+- Nếu không khai báo checksum cho file, bitbake sẽ báo lỗi
+- SRC_URI: nếu lấy file từ sourceforge thì có thể dùng cấu trúc `SRC_URI = "${SOURCEFORGE_MIRROR}/project-name/packagename-${PV}.tar.gz"
+- `EXTRA_OEMAKE` cấu hình thêm biến cho cross-compile
+    + EXTRA_OEMAKE = " 'CC=${CC}' 'AR=${AR}' "
+    + CC và AR được tự động trỏ để phù hợp với MACHINE đã được khai báo trong local.conf
+    + các cờ như CFLAGS nếu có thêm thì cần add luôn vào biến này, biến này chạy như lệnh make bình thường, cần truyền cho nó cấu hình như flag, arch, ... để build thành công
+- tạo hàm do_install để sau khi build app xong, file binary của app được cài vào folder /usr/bin
+    ```c
+    do_install() {
+        install -d ${D}${bindir}
+        install -m 0755 nInvaders ${D}${bindir}/ninvaders
+    }
+    ```
+    + nInvaders là tên thật của app mà build từ code của app mình dùng
+    + ${D}${bindir}/ninvaders: ninvaders là tên mới đặt trong /usr/bin
+- **Việc tạo recipe chỉ mới là tải code về rồi build, muốn app đó có trong rootfs thì cần append app đó vào `local.conf` bằng lệnh `IMAGE_INSTALL:append = " ninvaders"`**
+- Lệnh copy rootfs vào folder nfs: `sudo tar xpf /home/as/Desktop/linuxEmbeddedBBB/bootlin/Yocto-Project/yocto-bbb-labs/build/tmp/deploy/images/beaglebone/core-image-minimal-beaglebone.rootfs.tar.xz -C /home/as/Desktop/linuxEmbeddedBBB/bootlin/Yocto-Project/nfs`
