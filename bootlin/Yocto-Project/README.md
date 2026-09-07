@@ -534,3 +534,83 @@
     + ${D}${bindir}/ninvaders: ninvaders là tên mới đặt trong /usr/bin
 - **Việc tạo recipe chỉ mới là tải code về rồi build, muốn app đó có trong rootfs thì cần append app đó vào `local.conf` bằng lệnh `IMAGE_INSTALL:append = " ninvaders"`**
 - Lệnh copy rootfs vào folder nfs: `sudo tar xpf /home/as/Desktop/linuxEmbeddedBBB/bootlin/Yocto-Project/yocto-bbb-labs/build/tmp/deploy/images/beaglebone/core-image-minimal-beaglebone.rootfs.tar.xz -C /home/as/Desktop/linuxEmbeddedBBB/bootlin/Yocto-Project/nfs`
+
+# Writing recipes - advanced
+## Extending a recipe
+- Recipe extensions - giới thiệu:
+    + Đặt vấn đề: ta nên tránh chỉnh sửa các recipe của layer bên thứ 3 để việc cập nhật dễ dàng nhưng đôi khi lại cần apply patch hoặc 1 file cấu hình theo mong muốn
+    + Vì vậy bitbake build engine cho phép chỉnh sửa 1 recipe bằng cách mở rộng nó. Nhiều phần mở rộng có thể được apply vào 1 recipe
+    + tác dụng:
+        - Chỉnh sửa, ghi đè giá trị của biến bằng toán sử `set, append, prepend, remove`
+        - Chỉnh sửa task bằng `append, prepend` hoặc add thêm task
+- Extend a recipe
+    + ![alt text](images/image-21.png)
+    + file mở rộng recipe có đuôi là `.bbappend`
+    + file mở rộng cần phải có cùng tên với recipe chúng mở rộng, ví dụ:
+        - hello_0.1.bbappend áp dụng cho hello_0.1.bb
+        - hello_0.%.bbappned áp dụng cho hello_0.1.bb, hello_0.2.bb
+        - ký tự % chỉ có tác dụng nếu được đặt trước `.bbappend`
+    + file mở rộng cần phải chỉ định cụ thể version. Nếu recipe update lên phiên bản mới, file mở rộng cũng cần update
+    + nếu thêm bất kỳ file mới nào, đường dẫn của nó phải được thêm vào đầu biến `FILESEXTRAPATHS` (dùng prepend) trong recipe. Bitbake tìm kiếm các đường dẫn trong `FILESEXTRAPATHS` theo thứ tự trái qua phải. Vì thế, việc prepend đường dẫn mới vào `FILESEXTRAPATHS` sẽ yêu cầu bitbake tìm các file của mình trước.
+- Append file example
+    + Giả sử ta có cấu trúc như sau:
+        - ![alt text](images/image-22.png)
+    + File recipe mở rộng tương ứng như sau:
+        ```c
+        FILESEXTRAPATHS:prepend := "${THISDIR}/files:" // trỏ đường dẫn để lấy các file mới
+        SRC_URI += "file://defconfig \ // khai báo tên các file mới
+                    file://fix-memory-leak.patch \
+                    "
+        ```
+- Modifying existing tasks
+    + task có thể mở rộng với lệnh `:prepend` hoặc `:append`
+        ```c
+        do_install:append() {
+            install -d ${D}${sysconfdir}
+            install -m 0644 hello.conf ${D}${sysconfdir}
+        }
+        ```
+    + có thể áp dụng với cụ thể với từng MACHINE, ví dụ beaglebone
+        ```c
+        do_install:append:beaglebone() {
+            install -d ${D}${nonarch_base_libdir}/firmware
+            install -m 0644 firmware.bin ${D}${nonarch_base_libdir}/firmware
+        }
+        ```
+## Virtual providers (tiếp tục)
+- bitbake cho phép dùng tên ảo thay cho tên của recipe
+- virtual name được chỉ định qua biến `PROVIDES`
+- 1 vài recipe có thể có cùng tên ảo, nhưng chỉ có 1 cái được build và cài đặt vào image
+- `PROVIDERS += "virtual/kernel`
+## Classes
+- Class cung cấp 1 lớp ảo common để có thể tái sử dụng trong nhiều recipe, nó chứa các task được chuẩn hóa, các biến cấu hình dùng chung, các, các hàm tiện ích, các thiết lập đóng gói, ...
+- các task common không cần phải sửa đổi quá nhiều
+- bất kỳ metadata hay task nào có ở trong recipe thì đều có thể dùng trong class
+- file class có đuôi là `.bbclass`
+- Các class phải được đặt trong folder `classes-recipe` (dùng trong recipe) hoặc `classes-global`(dùng ở cấu hình global) hoặc `classes`(dùng được cả 2 nơi) của 1 layer
+- Cách sử dụng classes
+    + recipe có thể dùng các class trong folder `classes-recipe` bằng lệnh: `inherit class1 class2 ...`
+    + 1 recipe có thể kế thừa nhiều class
+    + các class trong folder `classes-global` có thể được kế thừa từ file cấu hình với biến `INHERIT`
+        - `INHERIT:append = " class1 class2"`
+        - class được khai báo trong `INHERIT` sẽ được dùng trong mỗi lần build recipe
+    + các class trong folder `classes` có thể dùng với `inherit` trong recipe hoặc biến môi trường `INHERIT` vì chúng không ràng buộc dùng trong recipe hay ở global
+- các common classes
+    + classes-global/base.bbclass
+    + classes-recipe/kernel.bbclass
+    + classes-recipe/autotools.bbclass
+    + classes-recipe/autotools-brokensep.bbclass
+    + classes-recipe/cmake.bbclass
+    + classes-recipe/meson.bbclass
+    + classes-recipe/native.bbclass
+    + classes-recipe/systemd.bbclass
+    + classes-recipe/update-rc.d.bbclass
+    + classes/useradd.bbclass
+    + xem thêm các class tại `https://docs.yoctoproject.org/ref-manual/classes.html`
+- Base class
+    + Mọi recipe đều tự động kế thừa 1 base class
+    + base class định nghĩa các task common cơ bản như: fetch, unpack, patch, configure, compile, install, clean, listtasks,...
+    + Nó tự động apply patch trong biến `SRC_URI`
+    + nó định nghĩa các mirror: SOURCEFORGE_MIRROR, DEBIAN_MIRROR, GNU_MIRROR, KERNELORG_MIRROR…
+    + nó định nghĩa `oe_runmake`: hàm biên dịch tiêu chuẩn với cơ thế gọi hàm `make` cùng các tham số được khai báo trong `EXTRA_OEMAKE` để thêm các biến này khi biên dịch vào lệnh `make`, nó tự động tôi ưu hóa quá trình biên dịch
+- Kernel class
