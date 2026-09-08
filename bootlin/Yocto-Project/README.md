@@ -76,6 +76,7 @@
 - cấu trúc của Poky trong Yocto project
 - ![alt text](images/image-7.png)
 ### Poky source tree
+- Yocto cần layer của Openembedded-core vì OE chứa các nền móng cơ bản nhất để xây dựng 1 hệ điều hành linux: class nền tảng, recipe nền tảng, kết nối các layer, ...
 - bitbake: chứa các script mà lệnh bitbake cần
 - meta: chứa metadata của Openembedded-core
 - meta-skeleton: chứa các recipe template cho BSP và kernel development
@@ -122,7 +123,7 @@
 ### Compilation
 - Việc biên dịch được thực hiện bởi bitbake build engine
 - `bitbake [options] [recipename/target ...]`
-- để build 1 target: `bitbake [target]
+- để build 1 target: `bitbake [target]`
 - build image tối giản: `bitbake core-image-minimal`, lệnh này thực hiện build toàn bộ cho target được chọn
 ### The build/ directory after the build
 - ý nghĩa các folder 
@@ -146,10 +147,10 @@
 # Using Yocto Project - advanced usage
 ## Advanced build usage and configuration
 - 4 chủ đề nâng cao trong việc build Yocto
-    + Variable operators and overrides. các toán tử gán, nối chuỗi, cơ chế đè dữ liệu
-    + Select package variants. cách lựa chọn phiên bản của từng gói phần mềm
-    + Manually add packages to the generated image. cách thêm thủ công các gói phần mềm mong muốn
-    + Run specific tasks with BitBake. điều khiển Bitbake build tác vụ theo ý muốn
+    + Variable operators and overrides: các toán tử gán, nối chuỗi, cơ chế đè dữ liệu
+    + Select package variants: cách lựa chọn phiên bản của từng gói phần mềm
+    + Manually add packages to the generated image: cách thêm thủ công các gói phần mềm mong muốn
+    + Run specific tasks with BitBake: điều khiển Bitbake build tác vụ theo ý muốn
 ## A little reminder
 - Recipe: mô tả các fetch, cấu hình, compile và cài đặt các software component (app, lib, ...)
 - Các task có thể chạy độc lập (nếu dependencies của chúng đáp ứng được)
@@ -237,19 +238,19 @@
 - precedence: độ ưu tiên của các lệnh gán giá trị
     + lệnh nào càng chi tiết cụ thể về target, lệnh đó sẽ được ưu tiên hơn
     + ví dụ nếu khai báo:
-    ```c
-    IMAGE_INSTALL:beaglebone = "busybox mtd-utils i2c-tools"
-    IMAGE_INSTALL = "busybox mtd-utils
-    ```
+        ```c
+        IMAGE_INSTALL:beaglebone = "busybox mtd-utils i2c-tools"
+        IMAGE_INSTALL = "busybox mtd-utils
+        ```
         - hệ thống nhận thấy lệnh `IMAGE_INSTALL:beaglebone` cụ thể hơn cho target nên nó sẽ lấy giá trị của lệnh này và bỏ qua lệnh dưới
 - combining overrides: kết hợp các phương thức override
     + nếu ra có lệnh 
-    ```c
-    IMAGE_INSTALL = "busybox mtd-utils"
-    IMAGE_INSTALL:append = " dropbear"
-    IMAGE_INSTALL:append:beaglebone = " i2c-tools"
-    ```
-        - kết quả sẽ là `IMAGE_INSTALL = "busybox mtd-utils dropbear i2c-tools"` nếu machine được chỉ động là `beaglebone`
+        ```c
+        IMAGE_INSTALL = "busybox mtd-utils"
+        IMAGE_INSTALL:append = " dropbear"
+        IMAGE_INSTALL:append:beaglebone = " i2c-tools"
+        ```
+        - kết quả sẽ là `IMAGE_INSTALL = "busybox mtd-utils dropbear i2c-tools"` nếu machine được chỉ định là `beaglebone`
         - nếu không thì kết quả là IMAGE_INSTALL = "busybox mtd-utils dropbear"
 ## Virtual provides
 - đặt vấn đề: có thể có nhiều recipe có chung chức năng nhưng mỗi thời điểm chỉ có thể dùng được 1
@@ -308,7 +309,8 @@
 - `bitbake -c <task> virtual/kernel`: task là tên sau chữ `do_` trong listtasks của virtual/kernel
 - `bitbake --runall=fetch world`: tải tất cả source của các package và dependencies mà có trong các layer trong Yocto trên máy
 - `bitbake -s`: liệt kê tất cả package local và phiên bản
-- Các layer dùng có thể có recipe kernel với phiên bản khác nhau, vì vậy cần chọn 1 phiên bản qua virtual/kernel. linux-bb.org là 1 recipe nằm trong bootlin/Yocto-Project/yocto-bbb-labs/meta-ti/meta-ti-bsp/recipes-kernel/linux/linux-bb.org
+- Các layer dùng có thể có recipe kernel với phiên bản khác nhau, vì vậy cần chọn 1 phiên bản qua virtual/kernel. 
+- linux-bb.org là 1 recipe nằm trong bootlin/Yocto-Project/yocto-bbb-labs/meta-ti/meta-ti-bsp/recipes-kernel/linux/linux-bb.org
 - `PREFERRED_VERSION_linux-bb.org:beaglebone = "6.6%"` chọn phiên bản của recipe kernel. Chọn xong thì kiểm tra đúng bản hay chưa `bitbake -e linux-bb.org | grep "^PV="`
 - `bitbake virtual/kernel`: build riêng kernel và dtb
 
@@ -329,10 +331,10 @@
     + lệnh thực thi task cụ thể: `bitbake -c <task> <target>`
 - Common variables
     + để giúp việc viết recipe dễ dàng hơn, 1 số biến tự động có sẵn:
-        - BPN: tên của recipe được lấy từ recipe file name
-        - PN: là BPN đi kèm tiền số (nativesdk-) hoặc hậu tố (-native)
-        - PV: version của pkg được lấy từ recipe file name
-        - BP: ${BPN}-${PV}
+        - `BPN`: tên của recipe được lấy từ recipe file name
+        - `PN`: là BPN đi kèm tiền số (nativesdk-) hoặc hậu tố (-native)
+        - `PV`: version của pkg được lấy từ recipe file name
+        - `BP`: `${BPN}-${PV}`
     + tên và version của recipe thường khớp với tên và version của mã nguồn
     + ví dụ: dùng recipe `bash_5.1.bb` thì `bash` là BPN, `5.1` là PV
 ## Organization of a recipe
@@ -377,17 +379,17 @@
         SRC_URI[patch.sha256sum] = "b184acf9eb39df794ffd..."
         ```
 + The source locations: local files
-    - Khai báo `SRC_URI` dùng `file://`
+    - Khai báo `SRC_URI` dùng `file://`, `file://` chỉ nơi chứa recipe này
     - các file local này sẽ được copy từ layer vào thư mục `work`
     - đường dẫn tìm kiếm file được định nghĩa trong biến `FILESPATH`
     - `FILESPATH` là danh sách các đường dẫn để tìm kiếm các file
     - thứ tự đường dẫn trong `FILESPATH` rất quan trọng, khi file đã được tìm thấy trong 1 path, việc tìm kiếm sẽ dừng
     - `FILESPATH`:
         + là sự kết hợp của `FILE_DIRNAME` (chứa các .bb file) và các hậu tố đi kèm như sau:
-            - ${FILE_DIRNAME}/${BP}
-            - ${FILE_DIRNAME}/${BPN}
-            - ${FILE_DIRNAME}/files
-            - ${FILE_DIRNAME}
+            - `${FILE_DIRNAME}/${BP}`
+            - `${FILE_DIRNAME}/${BPN}`
+            - `${FILE_DIRNAME}/files`
+            - `${FILE_DIRNAME}`
         + có thể ghi đè đường dẫn bằng biến `FILESOVERRIDES`    
             - `${TRANSLATED_TARGET_ARCH}:${MACHINEOVERRIDES}:${DISTROOVERRIDES}`
             - ví dụ: `arm:armv7a:ti-soc:ti33x:beaglebone:poky` - hệ thống sẽ tìm từ phải qua trái
@@ -518,9 +520,9 @@
 - ncurses: là library dùng để xây dựng giao diện GUI từ text chạy trực tiếp từ terminal
 - nếu tên của 1 recipe là abc_1.0.0.bb thì lệnh bitbake để run recipe này là `bitbake abc`
 - Nếu không khai báo checksum cho file, bitbake sẽ báo lỗi
-- SRC_URI: nếu lấy file từ sourceforge thì có thể dùng cấu trúc `SRC_URI = "${SOURCEFORGE_MIRROR}/project-name/packagename-${PV}.tar.gz"
+- SRC_URI: nếu lấy file từ sourceforge thì có thể dùng cấu trúc `SRC_URI = "${SOURCEFORGE_MIRROR}/project-name/packagename-${PV}.tar.gz"`
 - `EXTRA_OEMAKE` cấu hình thêm biến cho cross-compile
-    + EXTRA_OEMAKE = " 'CC=${CC}' 'AR=${AR}' "
+    + `EXTRA_OEMAKE = " 'CC=${CC}' 'AR=${AR}' "`
     + CC và AR được tự động trỏ để phù hợp với MACHINE đã được khai báo trong local.conf
     + các cờ như CFLAGS nếu có thêm thì cần add luôn vào biến này, biến này chạy như lệnh make bình thường, cần truyền cho nó cấu hình như flag, arch, ... để build thành công
 - tạo hàm do_install để sau khi build app xong, file binary của app được cài vào folder /usr/bin
@@ -531,10 +533,12 @@
     }
     ```
     + nInvaders là tên thật của app mà build từ code của app mình dùng
-    + ${D}${bindir}/ninvaders: ninvaders là tên mới đặt trong /usr/bin
+    + `${D}${bindir}/ninvaders`: ninvaders là tên mới đặt trong /usr/bin
 - **Việc tạo recipe chỉ mới là tải code về rồi build, muốn app đó có trong rootfs thì cần append app đó vào `local.conf` bằng lệnh `IMAGE_INSTALL:append = " ninvaders"`**
-- Lệnh copy rootfs vào folder nfs: `sudo tar xpf /home/as/Desktop/linuxEmbeddedBBB/bootlin/Yocto-Project/yocto-bbb-labs/build/tmp/deploy/images/beaglebone/core-image-minimal-beaglebone.rootfs.tar.xz -C /home/as/Desktop/linuxEmbeddedBBB/bootlin/Yocto-Project/nfs`
-
+- Lệnh copy rootfs vào folder nfs: 
+    ```
+    sudo tar xpf /home/as/Desktop/linuxEmbeddedBBB/bootlin/Yocto-Project/yocto-bbb-labs/build/tmp/deploy/images/beaglebone/core-image-minimal-beaglebone.rootfs.tar.xz -C /home/as/Desktop/linuxEmbeddedBBB/bootlin/Yocto-Project/nfs`
+    ```
 # Writing recipes - advanced
 ## Extending a recipe
 - Recipe extensions - giới thiệu:
@@ -613,4 +617,131 @@
     + Nó tự động apply patch trong biến `SRC_URI`
     + nó định nghĩa các mirror: SOURCEFORGE_MIRROR, DEBIAN_MIRROR, GNU_MIRROR, KERNELORG_MIRROR…
     + nó định nghĩa `oe_runmake`: hàm biên dịch tiêu chuẩn với cơ thế gọi hàm `make` cùng các tham số được khai báo trong `EXTRA_OEMAKE` để thêm các biến này khi biên dịch vào lệnh `make`, nó tự động tôi ưu hóa quá trình biên dịch
-- Kernel class
+- kernel class
+    + Dùng để build Linux kernel
+    + Class này cung cấp các task để cấu hình, compile, install kernek và kernel module
+    + Nó sẽ tự động áp dụng `defconfig` được khai báo trong `SRC_URI`: `SRC_URI += "file://defconfig"`
+    + kernel được chia thành 1 số package: `kernel`, `kernel-base`, `kernel-dev`, ...
+    + virtual provider của kernel là `virtual/kernel`
+    + Các biến cấu hình kernel
+        - `KERNEL_IMAGETYPE`
+        - `KERNEL_EXTRA_ARGS`
+        - `INITRAMFS_IMAGE`
+- autotools class
+    + khai báo các task và metadata để xử lý các app bằng cách dùng hệ thống build autotools (autoconf, automake, libtool)
+        - `do_configure`: tạo ra các script cấu hình bằng cách dùng `autoreconf` và load nó với các tham số hoặc cross-compile
+        - `do_compile`: chạy lệnh `make`
+        - `do_install`: chạy lệnh `make install`
+    + Tham số cấu hình mở rộng có thể thêm vào bằng biến `EXTRA_OECONF`
+    + Các cờ biên dịch có thể thêm vào bằng `EXTRA_OEMAKE`
+    + Ví dụ về autotools class
+        ```c
+        DESCRIPTION = "Print a friendly, customizable greeting"
+        HOMEPAGE = "https://www.gnu.org/software/hello/"
+        SECTION = "examples"
+        LICENSE = "GPL-3.0-or-later"
+        SRC_URI = "${GNU_MIRROR}/hello/hello-${PV}.tar.gz"
+        SRC_URI[sha256sum] = "ecbb7a2214196c57ff9340aa71458e1559abd38f6d8d169666846935df191ea7"
+        LIC_FILES_CHKSUM = "file://COPYING;md5=d32239bcb673463ab874e80d47fae504"
+        inherit autotools
+        ```
+- useradd class: 
+    + class này giúp thêm user vào hệ thống linux
+    + việc thêm user vào là cần thiết để tránh 1 số service chạy với quyền root
+    + `USERADD_PACKAGES` cần phải khai báo khi kế thừa class `useradd` để tạo user vào gói recipe
+    + các user và group sẽ được tạo trước khi thực thi `do_install`
+    + ít nhất 1 trong 2 biến sau cần được set:
+        - `USERADD_PARAM`: tham số truyền vào useradd
+        - `GROUPADD_PARAM`: tham số truyền vào groupadd
+    + Ví dụ
+        ```c
+        DESCRIPTION = "useradd class usage example"
+        SECTION = "examples"
+        LICENSE = "MIT"
+        SRC_URI = "file://file0" // lấy file0 trong folder chứa recipe này
+        LIC_FILES_CHKSUM = "file://${COREBASE}/meta/files/common-licenses/MIT;md5=0835ade698e0bc..."
+        inherit useradd
+        USERADD_PACKAGES = "${PN}" //tạo user cho gói recipe này (PN sẽ là tên recipe)
+        USERADD_PARAM:${PN} = "-u 1000 -d /home/user0 -s /bin/bash user0" // các tham số để tạo user
+        FILES:${PN} = "/home/user0/file0" // chỉ định file0 sẽ được đóng gói cùng package của recipe này
+        do_install() {
+            install -d ${D}/home/user0/
+            install -m 644 file0 ${D}/home/user0/
+            chown user0:user0 ${D}/home/user0/file0
+        }
+        ```
+- bin_package class
+    + đôi khi, ta chỉ muốn cài các package đã được build sẵn vào rootfs, ví dụ các firmware
+    + `bin_package.bbclass` hỗ trợ việc này
+        - vô hiệu hóa hàm `do_configure` và `do_compile`
+        - cung cấp `do_insall` để copy mọi thứ được khai báo trong biến `S`
+    + Set giá trị biến `LICENSE` thành `CLOSED` để bỏ qua kiểm tra mã nguồn
+
+## Bitbake file inclusions - gộp các file trong bitbake
+- Xác định vị trí các file trong hệ thống build
+    + metadata có thể được chia sẻ bằng cách dùng các file được include
+    + `BBPATH` = đường dẫn chứa recipe, class, hoặc file config
+    + bitbake dùng biến `BBPATH` trong file layer.conf để tìm các file được include, nó cũng tìm trong đường dẫn hiện tại.
+    + các keyword để include file từ recipe, class, hoặc file cấu hình:
+        - `inherit <name>`:
+            + dùng trong recipe hoặc class để kế thừa các chức năng của 1 class
+            + để kế thừa chức năng của class kernel, dùng: `inherit kernel`
+            + inherit sẽ tìm file có đuôi .bbclass trong đường dẫn trong `BBPATH`
+            + có thể dùng `inherit %{FOO}` với FOO là biến định nghĩa từ trước
+            + nếu áp dụng toàn cục, trong file cấu hình bitbake (.conf) cần dùng biến `INHERIT` để áp dụng cho mọi recipe
+        - `include <name>` và `require <name>`
+            + có thể dùng được trong mọi file để chèn nội dung từ 1 file khác vào file hiện tại
+            + nếu đường dẫn trong 2 từ khóa này là tương đối, bitbake sẽ lấy file đầu tiên nó tìm được trong các đường dẫn của `BBPATH`
+            + `include` không báo lỗi khi file không tìm thấy
+            + `require` báo lỗi nếu file không tìm thấy
+            + include 1 local file: `require ninvaders.inc`
+            + include 1 file từ nơi khác: `require path/to/file`
+    + để 1 recipe tìm thấy được recipe, class, file cấu hình được nêu trong 3 keyword trên thì bitbake cần check biến `BBPATH` để xem nó nằm ở đâu. Nếu không khai báo `BBPATH`, ta cần điền đường dẫn tuyệt đối cho keyword
+## More recipe debugging tools
+- xuất ra toàn bộ các biến môi trường dùng cho việc debug lỗi
+    + `bitbake -c devshell <recipe>`
+- để biết tác động khi thay đổi 1 recipe, bật chức năng lịch sử trong `local.conf`
+    + `INHERIT += "buildhistory"`
+    + sau đó dùng tool `buildhistory-diff` để check sự khác biệt giữa 2 lần build:
+        - ![alt text](images/image-25.png)
+## Network usage
+- Fetch source
+    + bitbake sẽ tìm kiếm và tải file từ các đường dẫn sau theo thứ tự trên xuống
+        - `DL_DIR`: đường dẫn local download
+        - `PREMIRRORS`: nguồn máy chủ ưu tiên
+        - `SRC_URI`: upstream source
+        - `MIRRORS`: nguồn máy chủ dự phòng
+    + nếu các mirror lỗi, việc build sẽ lỗi 
+- Cách cấu hình mirror trong OpenEmbedded-core
+    + trong `meta/classes-global/mirrors.bbclass`
+        - ![alt text](images/image-26.png)
+            + với PREMIRRORS, nếu bitbake tải cái gì từ sourceware.org, nó sẽ bị ép nhảy qua yoctoproject.org để tải
+            + với MIRRORS, nếu bitbake tải từ các nguồn svn, git, http mà lỗi thì sẽ chuyển qua yoctoproject.org
++ Cách cấu hình PREMIRRORS theo cách riêng mình
+    - Cách 1: 
+        ```c
+        INHERIT += "own-mirrors"
+        SOURCE_MIRROR_URL = "http://example.com/my-mirror"
+        ```
+        + mỗi khi tải bất kỳ 1 file nào, bitbake sẽ kiểm tra `my-mirror` trước
+        + cách này chỉ hỗ trợ 1 URL
+    - Cách 2: dùng cho cấu hình phức tạp hơn
+        + dùng prepend
+        ```c
+        PREMIRRORS:prepend = "\
+            git://.*/.* http://example.com/my-mirror-for-git/ \
+            svn://.*/.* http://example.com/my-mirror-for-svn/ \
+            http://.*/.* http://www.yoctoproject.org/sources/ \
+            https://.*/.* http://www.yoctoproject.org/sources/ "
+        ```
+        + prepend sẽ chèn các URL này lên đầu tiên bắt buộc bitbake phải check các đường dẫn này trước 
++ Tạo 1 local mirror
+    - ta có thể đưa folder download trong máy mình thành 1 mirror để các máy khác kết nối vào để lấy source
+    - riêng với mã nguồn tải từ git, cần nén thư mục đó lại -> dùng `BB_GENERATE_MIRROR_TARBALLS = "1"` trong local.conf để sau khi tải về từ git, bitbake sẽ nén lại thành dạng `.tar.gz` rồi đặt trong đường dẫn của `DL_DIR`
++ Ngăn cấm truy cập mạng
+    - từ bản 4.0 Kirkstone, việc truy cập network chỉ được cho phép trong `do_fetch` để tránh tải các nguồn không được kiểm soát
+    - có thể vô hiệu hóa quyền truy cập mạng bằng `BB_NO_NETWORK = "1"`
+    - để tải tất cả source trước khi vô hiệu hóa mạng, dùng lệnh: `bitbake --runall=fetch core-image-minimal`
+    - hoặc có thể giới hạn bitbake download file từ `PREMIRRORS` bằng: `BB_FETCH_PREMIRRORONLY = "1"`
+
+# Layers
