@@ -745,3 +745,75 @@
     - hoặc có thể giới hạn bitbake download file từ `PREMIRRORS` bằng: `BB_FETCH_PREMIRRORONLY = "1"`
 
 # Layers
+## Giới thiệu về layers
+- Nguyên lý:
+    + OpenEmbedded build system thao tác với các metadata
+    + Layer là tập hợp của recipes, classes, configuration, ...
+    + Layer cho phép tách biệt và tổ chức các metadata
+    + Layer phải bắt đầu tên với tiền tố `meta-`
+- Layer trong Poky
+    + ![alt text](images/image-27.png)
+    + hệ thống Poky là tập hợp của nhiều layer common cơ bản
+        - meta
+        - meta-skeleton
+        - meta-poky
+        - meta-yocto-bsp
+    + Poky chỉ chứa các layer cơ bản nhất, common nhất
+    + Các layer khác nếu cần sẽ được add riêng
+    + Tránh chỉnh sửa Poky, hãy tạo layer riêng để chỉnh sửa
+- Layer của bên thứ 3
+    + ![alt text](images/image-28.png)
+    + nằm ngoài Poky
+- Tích hợp và sử dụng 1 layer
+    + Danh sách các layer nằm ở `https://layers.openembedded.org/`
+    + trước khi tạo 1 layer, hãy check xem nó có sẵn chưa
+    + Nếu layer có sẵn rồi thì mở rộng thêm, tránh tạo layer từ đầu
+    + Các layer nên đặt cùng folder với folder poky
+    + khai báo các layer cho bitbake trong `conf/bblayers.conf` với biến `BBLAYERS`
+    + bitbake sẽ kiểm tra mỗi layer trong `BBLAYERS` và lấy các recipes, configuration fies, classes mà các layer đó chứa.
+    + Để kiểm tra các layer đang có trong `BBLAYERS`, dùng lệnh:
+        - `bitbake-layers show-layers`
+        - `bitbake-layers add-layer meta-custom`
+        - `bitbake-layers remove-layer meta-qt5`
+- Một số layer hữu ích
+    + 1 vài SoC có sẵn layer hỗ trợ tốt như: `meta-ti-bsp`, `meta-freescale`, `meta-st-stm32mp`
+    + 1 số layer hỗ trợ các ứng dụng như:   
+        - `meta-firefox`: hỗ trợ web browser
+        - `meta-filesystems`: hỗ trợ các filesystems được thêm
+        - `meta-java`: hỗ trợ java
+        - `meta-arm-toolchain`: recipe cho toolchain GCC của ARM
+        - `meta-qt6`: module QT6
+        - `meta-realtime`: công cụ realtime và chương trình test
+        - ...
+    + lưu ý: 1 số layer không tồn tại trong 1 số branch của Yocto, nếu muốn dùng cần checkout đúng branch có layer đó
+## Lời khuyên về layer
+- luôn giữ hệ thống build đơn giản, chỉ nên có ít layer khi khởi tạo build
+- sau đó, nếu cần layer nào thì xem xét về cost/benefit, vì:
+    + chất lượng 1 vài layer có sẵn rất tệ
+    + chất lượng layer của các vendor SoC rất đa dạng
+- Ví dụ về Yocto kiss
+    + `https://github.com/bootlin/yocto-kiss`
+    + Keep your layer simple, and here's how `https://www.youtube.com/watch?v=zCMHy2PjsaM`
+## Tạo 1 layer
+- Tạo 1 layer custom
+    + 1 layer là tập hợp của các files, thư mục
+    + lệnh bitbake để tạo mới 1 layer: `bitbake-layers create-layer -p <PRIORITY> <layer>`
+        - PRIORITY: giúp cho việc chọn recipe ở layer nào sẽ được build khi recipe đó chứa trong nhiều layer
+    + độ ưu tiên của layer cao hơn so với thứ tự sắp xếp version của recipe, vì vậy ta có thể hạ cấp recipe trong 1 layer. Tức là nếu layer A có độ ưu tiên cao hơn layer B, và cả 2 đều chứa cùng 1 recipe nhưng khác phiên bản a_0.1.bb trong A và a_0.2.bb trong B, thì bitbake sẽ lấy layer A và build recipe a_0.1.bb
+    + 1 layer khi tạo ra sẽ có sẵn:
+        - `conf/layer.conf`: file cấu hình của 1 layer, chứa thông tin về độ ưu tiên PRIORITY và các thông tin chung. File này bắt buộc phải có vì nó là entry point của layer
+        - `COPYING.MIT`: license của layer này
+        - `README`: mô tả cơ bản về layer
+        - các recipe của layer đó phải được tổ chức như sau: `layername/recipe-*/*/*.bb`
+    + Nguyên tắc:   
+        - không copy hoặc chỉnh sửa recipe đã có của layer khác, thay vào đó hãy dùng các file append `*.bbappend`
+        - tránh duplicate file.
+        - các layer nên đặt cùng cấp với nhau
+        - `LAYERDEPENDS`: layer này cần phụ thuộc vào layer được cấu hình trong `LAYERDEPENDS`
+        - `LAYERSERIES_COMPAT`: định nghĩa phiên bản Yocto mà layer tương thích
+## Thực hành
+- 1 số lệnh để check các thuộc tính liên quan layer
+    + bitbake-layers show-layers
+    + bitbake-layers show-recipes 'linux-*'
+    + bitbake-layers show-overlayed
+    + bitbake-layers create-layer
