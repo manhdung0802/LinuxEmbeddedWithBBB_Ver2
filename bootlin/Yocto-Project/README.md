@@ -1,5 +1,82 @@
 # Menu
 
+- [Introduction to Embedded Linux](#introduction-to-embedded-linux)
+  - [Simplified Linux system architecture](#simplified-linux-system-architecture)
+  - [Overall Linux boot sequence](#overall-linux-boot-sequence)
+  - [Embedded Linux work - công việc về embedded linux](#embedded-linux-work---công-việc-về-embedded-linux)
+  - [Embedded Linux build system: principle](#embedded-linux-build-system-principle)
+  - [Embedded Linux build system: tools](#embedded-linux-build-system-tools)
+- [Yocto Project and Poky reference system overview](#yocto-project-and-poky-reference-system-overview)
+  - [The Yocto project overview](#the-yocto-project-overview)
+    - [Yocto: principle](#yocto-principle)
+    - [Lexicon: bitbake - thuật ngũ: bitbake](#lexicon-bitbake---thuật-ngũ-bitbake)
+    - [Lexicon: recipes](#lexicon-recipes)
+    - [Lexicon: tasks](#lexicon-tasks)
+    - [Lexicon: metadata and layers](#lexicon-metadata-and-layers)
+    - [`openembedded-core` là core layer của Yocto project](#openembedded-core-là-core-layer-của-yocto-project)
+    - [Lexicon: Poky](#lexicon-poky)
+    - [The Yocto Project lexicon](#the-yocto-project-lexicon)
+    - [Example of a Yocto Project based BSP](#example-of-a-yocto-project-based-bsp)
+  - [The Poky reference system overview](#the-poky-reference-system-overview)
+    - [Getting the Poky reference system](#getting-the-poky-reference-system)
+    - [Poky](#poky)
+    - [Poky source tree](#poky-source-tree)
+    - [Documentation](#documentation)
+- [Using Yocto Project - basics](#using-yocto-project---basics)
+  - [Environment setup](#environment-setup)
+    - [Environment setup](#environment-setup-1)
+    - [oe-init-build-env](#oe-init-build-env)
+    - [The initial build/ directory](#the-initial-build-directory)
+    - [Exported environment variables](#exported-environment-variables)
+    - [Available commands](#available-commands)
+  - [Configuring the build system](#configuring-the-build-system)
+    - [The build/conf/ directory](#the-buildconf-directory)
+    - [Configuring the build](#configuring-the-build)
+  - [Building an image](#building-an-image)
+    - [Compilation](#compilation)
+    - [The build/ directory after the build](#the-build-directory-after-the-build)
+  - [Thực hành](#thực-hành)
+- [Using Yocto Project - advanced usage](#using-yocto-project---advanced-usage)
+  - [Advanced build usage and configuration](#advanced-build-usage-and-configuration)
+  - [A little reminder](#a-little-reminder)
+  - [Variables](#variables)
+    - [Overview](#overview)
+    - [Operators:](#operators)
+    - [bitbake-getvar](#bitbake-getvar)
+    - [overrides](#overrides)
+    - [Order of variable assignment](#order-of-variable-assignment)
+    - [Overrides for conditional asignment](#overrides-for-conditional-asignment)
+  - [Virtual provides](#virtual-provides)
+    - [Variant examples](#variant-examples)
+    - [Provider selection](#provider-selection)
+    - [Version selection](#version-selection)
+  - [Selection of packages to install](#selection-of-packages-to-install)
+  - [The power of BitBake](#the-power-of-bitbake)
+    - [Common BitBake options](#common-bitbake-options)
+    - [shared state cache](#shared-state-cache)
+  - [Thực hành](#thực-hành-1)
+- [Writing recipes - basics](#writing-recipes---basics)
+  - [Recipes: overview](#recipes-overview)
+  - [Organization of a recipe](#organization-of-a-recipe)
+  - [Applying patches](#applying-patches)
+  - [Example of a recipe](#example-of-a-recipe)
+  - [Ví dụ về 1 recipe có phần không phụ thuộc phiên bản](#ví-dụ-về-1-recipe-có-phần-không-phụ-thuộc-phiên-bản)
+  - [Debugging recipes](#debugging-recipes)
+  - [Thực hành](#thực-hành-2)
+- [Writing recipes - advanced](#writing-recipes---advanced)
+  - [Extending a recipe](#extending-a-recipe)
+  - [Virtual providers (tiếp tục)](#virtual-providers-tiếp-tục)
+  - [Classes](#classes)
+  - [Bitbake file inclusions - gộp các file trong bitbake](#bitbake-file-inclusions---gộp-các-file-trong-bitbake)
+  - [More recipe debugging tools](#more-recipe-debugging-tools)
+  - [Network usage](#network-usage)
+- [Layers](#layers)
+  - [Giới thiệu về layers](#giới-thiệu-về-layers)
+  - [Lời khuyên về layer](#lời-khuyên-về-layer)
+  - [Tạo 1 layer](#tạo-1-layer)
+  - [Thực hành](#thực-hành-3)
+- [BSP Layers](#bsp-layers)
+
 # Introduction to Embedded Linux
 ## Simplified Linux system architecture 
 - Kiến trúc chung của hệ thống Linux
@@ -537,7 +614,7 @@
 - **Việc tạo recipe chỉ mới là tải code về rồi build, muốn app đó có trong rootfs thì cần append app đó vào `local.conf` bằng lệnh `IMAGE_INSTALL:append = " ninvaders"`**
 - Lệnh copy rootfs vào folder nfs: 
     ```
-    sudo tar xpf /home/as/Desktop/linuxEmbeddedBBB/bootlin/Yocto-Project/yocto-bbb-labs/build/tmp/deploy/images/beaglebone/core-image-minimal-beaglebone.rootfs.tar.xz -C /home/as/Desktop/linuxEmbeddedBBB/bootlin/Yocto-Project/nfs`
+    sudo tar xpf /home/as/Desktop/linuxEmbeddedBBB/bootlin/Yocto-Project/yocto-bbb-labs/build/tmp/deploy/images/beaglebone/core-image-minimal-beaglebone.rootfs.tar.xz -C /home/as/Desktop/linuxEmbeddedBBB/bootlin/Yocto-Project/nfroot`
     ```
 # Writing recipes - advanced
 ## Extending a recipe
@@ -817,3 +894,11 @@
     + bitbake-layers show-recipes 'linux-*'
     + bitbake-layers show-overlayed
     + bitbake-layers create-layer
+    + bitbake-layers show-appends
+- trong file bbappend:
+    + SRC_URI cần để dấu `+=` vì để nó append vào file recipe gốc. Nếu để `=` thì SRC_URI trong recipe gốc sẽ mất
+- folder work/armv7at2hf-neon-poky-linux-gnueabi chứa các gói phần mềm chạy ở tầng ứng dụng mà không phụ thuộc CPU
+- folder work/beaglebone-poky-linux-gnueabi chứa các gói phần mềm dành riêng cho beaglebone (kernel source, u-boot, dtb, ...)
+- kiểm ra SRC_URI đã nhận đủ source chưa: `bitbake-getvar -r linux-bb.org SRC_URI`
+
+# BSP Layers
