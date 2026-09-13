@@ -902,3 +902,98 @@
 - kiểm ra SRC_URI đã nhận đủ source chưa: `bitbake-getvar -r linux-bb.org SRC_URI`
 
 # BSP Layers
+## Giới thiệu về BSP layers trong Yocto
+- ![alt text](images/image-29.png)
+- BSP layer là tập hợp các layer con trong hệ thống layer của Yocto
+- BSP layer chứa các metadata có mục tiêu hỗ trợ 1 nhóm phần cứng cụ thể
+- BSP layer thường cung cấp:    
+    + các file cấu hình phần cứng
+    + các recipe và cấu hình cho kernel và bootloader
+    + các module driver để bật các tính năng cụ thể của phần cứng
+    + các file user binary, firmware được build sẵn
+- Đặt tên: `meta-<bsp-name>`, ví dụ `meta-ti-bsp`, `meta-st-stm32mp`
+## Các file cấu hình phần cứng - machine files
+- 1 layer cung cấp 1 file machine (là file cấu hình phần cứng) cho phần cứng mà nó hỗ trợ
+- Các file cấu hình này được đặt trong `meta-<bsp-name>/conf/machine/*.conf`
+    + tên của file cấu hình sẽ được set theo giá trị trong biến `MACHINE`. Ví dụ `meta-ti/meta-ti-bsp/conf/machine/beaglebone.conf` với `MACHINE = "beaglebone`
+- nên mô tả phần cứng mà bsp hỗ trợ trong README
+- Các file cấu hình phần cứng này chứa các biến cấu hình liên quan tới kiến trúc và tính năng của machine
+- 1 vài biến hỗ trợ custom kernel image hoặc filesystems
+- Các biến cấu hình
+    + `TARGET_ARCH`: tên kiến trúc được build
+    + `PREFERRED_PROVIDER_virtual/kernel`: chỉ định dùng kernel nào
+    + `MACHINE_FEATURES`: khai báo danh sách các tính năng được cung cấp bởi machine như `usbgadget, usbhost, screen wifi`. Recipe sẽ check các tính năng nào được bật để build. Một số package sẽ được tự động add vào rootfs dựa vào tính năng được bật 
+    + `SERIAL_CONSOLES`: cấu hình cho serial console, ví dụ `115200;ttyS0`
+    + `KERNEL_IMAGETYPE`: loại image của kernel sẽ được build, ví dụ zImage
+- Ví dụ file `conf/machine/beaglebone-black.conf`
+    ```c
+    #@TYPE: Machine
+    #@NAME: Beaglebone black machine
+    #@DESCRIPTION: Reference machine configuration for the http://beagleboard.org/black board
+    include conf/machine/include/arm/armv7a/tune-cortexa8.inc
+    IMAGE_FSTYPES = "tar.zst wic.zst wic.bmap"
+    WKS_FILE = "beaglebone-yocto.wks"
+    EXTRA_IMAGEDEPENDS += "virtual/bootloader"
+    SERIAL_CONSOLES ?= "115200;ttyS0"
+    PREFERRED_PROVIDER_virtual/kernel ?= "linux-yocto"
+    PREFERRED_VERSION_linux-yocto ?= "6.18%"
+    PREFERRED_PROVIDER_virtual/bootloader ?= "u-boot"
+    KERNEL_IMAGETYPE = "zImage"
+    KERNEL_DEVICETREE = "am335x-boneblack.dtb"
+    MACHINE_ESSENTIAL_EXTRA_RDEPENDS += "kernel-image kernel-devicetree"
+    MACHINE_EXTRA_RRECOMMENDS = "kernel-modules"
+    SPL_BINARY = "MLO"
+    UBOOT_SUFFIX = "img"
+    UBOOT_MACHINE = "am335x_evm_defconfig"
+    MACHINE_FEATURES = "usbgadget usbhost vfat alsa"
+    IMAGE_BOOT_FILES ?= "u-boot.${UBOOT_SUFFIX} ${SPL_BINARY} ${KERNEL_IMAGETYPE} ${KERNEL_DEVICETREE}"
+    ```
+## Bootloader
+- Mặc định ở ARM, bootloader được dùng là U-boot với version cố định trong mỗi bản Poky
+- Các cấu hình được thiết lập trong `meta/recipes-bsp/u-boot/u-boot.inc`
+- 1 số cấu hình của recipe u-boot có thể chỉnh sửa trong machine files ở mục trước
+    + `SPL_BINARY`: đặt tên cho file spl output, mặc định là chuỗi rỗng
+    + `UBOOT_SUFFIX`: bin hoặc img
+    + `UBOOT_MACHINE`: target để build
+    + `UBOOT_ENTRYPOINT`: địa chỉ bộ nhớ để CPU nhảy đến thực thi lệnh của uboot
+    + `UBOOT_LOADADDRESS`: địa chỉ bộ nhớ để nạp file uboot vào RAM, thường trùng với địa chỉ của `UBOOT_ENTRYPOINT`
+    + `UBOOT_MAKE_TARGET`: build ra file gì. Ví dụ `UBOOT_MAKE_TARGET = "u-boot.img"`
+- Custom bootloader
+    + có thể dùng recipe mở rộng (bbappend) để thêm các cấu hình cho recipe uboot gốc
+    + có thể tạo 1 recipe mới hoàn toàn để custom uboot, hãy dùng file cấu hình chung `meta/recipes-bsp/u-boot/u-boot.inc`
+## Kernel
+- Recipe linux kernel trong Yocto
+    + Có 2 cách để biên dịch kernel
+        - tạo 1 custom kernel recipe, kế thừa `kernel.bbclass`
+        - dùng gói `linux-yocto` được cung cấp bởi Poky cho các nhu cầu phức tạp
+    + kernel được lựa chọn trong machine file bằng biến `PREFERRED_PROVIDER_virtual/kernel`
+    + lựa chọn version kernel với biến `PREFERRED_VERSION_<kernel_provider>`
+- Gói `linux-yocto` là tập hợp các recipe với tính năng nâng cao để build kernel 
+    + `PREFERRED_PROVIDER_virtual/kernel = "linux-yocto"` -> chọn recipe linux-yocto làm kernel chính
+    + `PREFERRED_VERSION_linux-yocto = "5.14%"` -> chọn version kernel là 5.14.x
+- Cấu hình `SRC_URI` để apply nhiều file config (cfg) cho kernel
+    ```c
+    SRC_URI += "file://defconfig \
+                file://nand-support.cfg \
+                file://ethernet-support.cfg"
+    ```
+- Một cách khác để cấu hình cho recipe `linux-yocto` là dùng `Advanced Metadata`
+    + là cách mạnh nhất để chia nhỏ các file cấu hình và các patch thành các phần nhỏ
+    + nó được thiết kế để cung cấp 1 kernel có tính tùy biến cao
+    + đọc thêm ở : `https://docs.yoctoproject.org/kernel-dev/advanced.html#working-with-advanced-metadata-yocto-kernel-cache`
+- Kernel metadata:  
+    + là 1 cách để tổ chức và chia nhỏ các file cấu hình kernel và các file patch thành các phần nhỏ, mỗi phần hỗ trợ 1 tính năng
+    + 2 biến cấu hình chính:
+        - `LINUX_KERNEL_TYPE`: standard, hoặc tiny (nhỏ) hoặc preempt-rt (áp dụng cho patch `PREEMPT_RT`)
+        - `KERRNEL_FEATURES`: danh sách các tính năng được bật, đó là các file patch hoặc các file cấu hình
+    + Các file mô tả Kernel metadata có cú pháp của nó để mô tả các tùy chọn kernel
+    + 1 tính năng cơ bản được định nghĩa bao gồm 1 bản vá và 1 đoạn cấu hình. Ví dụ `features/nunchuk.scc`:
+        ```c
+        define KFEATURE_DESCRIPTION "Enable Nunchuk driver"
+        kconf hardware enable-nunchuk-driver.cfg
+        patch Add-nunchuk-driver.patch
+        ```
+        - sau đó tích hợp vào kernel image: `KERNEL_FEATURES += "features/nunchuk.scc"`
+## Thực hành
+- `DEFAULTTUNE = "cortexa8thf-neon"` trong conf: chỉ định kiểu tối ưu hóa phần cứng là cortexa8thf-neon (kiến trúc là arm cortex a8, t là tập lệnh thumb-2 của arm, hf là hardfload, neon hỗ trợ tăng tốc xử lý các tác vụ âm thanh, hình ảnh)
+- Sau khi có file cấu hình machine rồi, để build với machine đó thì cần sửa `MACHINE` trong file `build/conf/local.conf`
