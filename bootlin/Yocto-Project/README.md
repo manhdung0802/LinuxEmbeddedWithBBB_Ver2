@@ -76,6 +76,19 @@
   - [Tạo 1 layer](#tạo-1-layer)
   - [Thực hành](#thực-hành-3)
 - [BSP Layers](#bsp-layers)
+  - [Giới thiệu về BSP layers trong Yocto](#giới-thiệu-về-bsp-layers-trong-yocto)
+  - [Các file cấu hình phần cứng - machine files](#các-file-cấu-hình-phần-cứng---machine-files)
+  - [Bootloader](#bootloader)
+  - [Kernel](#kernel)
+  - [Thực hành](#thực-hành-4)
+- [Distro layers](#distro-layers)
+  - [Các khái niệm](#các-khái-niệm)
+  - [Cách dùng trong thực tế](#cách-dùng-trong-thực-tế)
+  - [Tạo 1 file cấu hình Distro](#tạo-1-file-cấu-hình-distro)
+  - [Biến DISTRO_FEATURES](#biến-distro_features)
+  - [Lựa chọn toolchain](#lựa-chọn-toolchain)
+  - [Sample files](#sample-files)
+- [Images](#images)
 
 # Introduction to Embedded Linux
 ## Simplified Linux system architecture 
@@ -614,7 +627,7 @@
 - **Việc tạo recipe chỉ mới là tải code về rồi build, muốn app đó có trong rootfs thì cần append app đó vào `local.conf` bằng lệnh `IMAGE_INSTALL:append = " ninvaders"`**
 - Lệnh copy rootfs vào folder nfs: 
     ```
-    sudo tar xpf /home/as/Desktop/linuxEmbeddedBBB/bootlin/Yocto-Project/yocto-bbb-labs/build/tmp/deploy/images/beaglebone/core-image-minimal-beaglebone.rootfs.tar.xz -C /home/as/Desktop/linuxEmbeddedBBB/bootlin/Yocto-Project/nfroot`
+    sudo tar xpf /home/as/Desktop/linuxEmbeddedBBB/bootlin/Yocto-Project/yocto-bbb-labs/build/tmp/deploy/images/beaglebone/core-image-minimal-beaglebone.rootfs.tar.xz -C /home/as/Desktop/linuxEmbeddedBBB/bootlin/Yocto-Project/nfsroot
     ```
 # Writing recipes - advanced
 ## Extending a recipe
@@ -922,7 +935,7 @@
 - Các biến cấu hình
     + `TARGET_ARCH`: tên kiến trúc được build
     + `PREFERRED_PROVIDER_virtual/kernel`: chỉ định dùng kernel nào
-    + `MACHINE_FEATURES`: khai báo danh sách các tính năng được cung cấp bởi machine như `usbgadget, usbhost, screen wifi`. Recipe sẽ check các tính năng nào được bật để build. Một số package sẽ được tự động add vào rootfs dựa vào tính năng được bật 
+    + `MACHINE_FEATURES`: khai báo danh sách các phần cứng tồn tại trên machine như `usbgadget, usbhost, screen wifi`. Recipe sẽ check các tính năng nào được bật để build. Một số package sẽ được tự động add vào rootfs dựa vào tính năng được bật 
     + `SERIAL_CONSOLES`: cấu hình cho serial console, ví dụ `115200;ttyS0`
     + `KERNEL_IMAGETYPE`: loại image của kernel sẽ được build, ví dụ zImage
 - Ví dụ file `conf/machine/beaglebone-black.conf`
@@ -997,3 +1010,194 @@
 ## Thực hành
 - `DEFAULTTUNE = "cortexa8thf-neon"` trong conf: chỉ định kiểu tối ưu hóa phần cứng là cortexa8thf-neon (kiến trúc là arm cortex a8, t là tập lệnh thumb-2 của arm, hf là hardfload, neon hỗ trợ tăng tốc xử lý các tác vụ âm thanh, hình ảnh)
 - Sau khi có file cấu hình machine rồi, để build với machine đó thì cần sửa `MACHINE` trong file `build/conf/local.conf`
+
+# Distro layers
+- ![alt text](images/image-32.png)
+## Các khái niệm
+- Ta có thể tạo 1 hệ điều hành mới bằng cách dùng 1 Distro layer.
+- Distro layer chứa các cấu hình và recipe để định nghĩa "luật chơi" cho hệ điều hành
+- Distro layer này cho phép thiết lập: toolchain, wayland hay x11, systemd hay sysvinit, ...
+- Distro layer có thể ghi đè các giá trị của openembedded-core hoặc poky mà không chỉnh sửa các layer gốc
+- Distro layer có thể chia sẻ các thiết lập trong file `conf/local.conf` cho các máy khác thay vì local.conf chỉ nằm trong thư mục build của máy local
+- Poky là 1 bản phân phối nặng, chứa toàn bộ các tính năng mà có thể ta không cần hết. Vì vậy tự tạo 1 bản distro layer riêng sẽ giúp việc cấu hình trở nên tối giản, phù hợp với hệ thống
+## Cách dùng trong thực tế
+- Nên tách biệt distro layer khỏi các custom layer khác
+- Distro layer thường chứa:
+    + File cấu hình distro
+    + các class đặc thù
+    + các recipe đặc thù: script khởi tạo, màn hình chào mừng, ...
+## Tạo 1 file cấu hình Distro
+- File cấu hình distro layer thường đặt là: `conf/distro/<distro>.conf`
+- Cần define biến `DISTRO_NAME` trong file này
+- Có thể dùng các biến `DISTRO_*` khác
+- dùng biến `DISTRO = "<distro>"` trong file `local.conf` để sử dụng cấu hình distro
+    ```c
+    DISTRO_NAME = "My Custom Distro"
+    DISTRO_VERSION = "1.0"
+    MAINTAINER = "..."
+    DISTRO_FEATURES = "sysvinit ipv4 ipv6 wifi zeroconf usbgadget usbhost pni-names"
+    ```
+## Biến DISTRO_FEATURES
+- chứa danh sách các tính năng mà bản phân phối cho phép dùng về mặt phần mềm (mặc dù phần cứng có nhưng hệ điều hành không cho thì không dùng được)
+- Ví dụ, với tính năng bluetoot:
+    + yêu cầu bluez phải được build và add vào image
+    + bật chức năng bluetooth trong `ConnMan`
+- Biến `COMBINED_FEATURES` sẽ được Yocto check và kiểm tra cấp danh sách các tính năng mà được bật trong cả `MACHINE_FEATURES` và `DISTRO_FEATURES`. Vì phải thỏa mãn cả 2 biến có tính năng đó thì tính năng đó mới hoạt động được 
+## Lựa chọn toolchain
+- toolchain được lựa chọn bằng biến `TCMODE`. Giá trị mặc định là `default`
+- các recipe của providers sẽ định nghĩa giúp ta cách biên dịch và cài đặt toolchain
+## Sample files
+- 1 distro layer thường cần chứa `sample files`, được dùng như là template để tạo các file cấu hình chính. Khi người khác dùng thì chỉ cần copy ra để dùng mà không cần viết lại từ đầu
+- Ví dụ các sample files:
+    + bblayers.conf.sample
+    + local.conf.sample
+- Trong Poky, sample file được đặt trong `meta-poky/conf/templates/default/`
+- Biến `TEMPLATECONF` khai báo nơi để tìm sample files và có thể export trước khi chạy lệnh `source oe-init-build-env`. 
+    + Ví dụ: chạy `export TEMPLATECONF=meta-mydistro/conf/templates/myconfig` trước `source oe-init-build-env` sẽ giúp thư mục build chứa các cấu hình của mình trong file `local.conf` và `bblayers.conf`
+- Để tạo các sample file từ bblayers.conf và local.conf, dùng lệnh: `bitbake-layers save-build-conf`
+
+# Images
+## Giới thiệu về images
+- về bản chất, 1 image là 1 recipe ở cấp độ cao nhất của recipe và được dùng song song với machine
+- image gom tất cả lại để tạo thành 1 hệ điều hành hoàn chỉnh
+- image độc lập với kiến trúc, nó định nghĩa cách mà rootfs được buil, build với package nào
+- Mặc định, 1 số image được cung cấp bới Poky: `meta*/recipes*/images/*.bb`
+- 1 số image common:
+    + core-image-base: chỉ có giao diện dòng lệnh, hỗ trợ full phần cứng
+    + core-image-minimal: image nhỏ, chỉ đủ để boot device
+    + core-image-minimal-dev: image nhỏ nhưng có thêm 1 vài tool, phù hợp để phát triển phần mềm
+    + core-image-x11: image có hỗ trợ X11 cơ bản
+    + core-image-weston: image có hỗ trợ wayland
+    + core-image-rt: như core-image-minimal nhưng có thêm tool, kernel cho realtime
+- 1 image có: mô tả, license, và kết thừa class `core-image`
+## Cấu trúc, biến của 1 image recipe
+- IMAGE_BASENAME: tên của file image output, mặc định là ${PN}
+- IMAGE_INSTALL: danh sách các gói và nhóm các gói để cài vào image, nó sẽ là tên của các recipe trong các folder `packagegroups` trong 1 số layer có sẵn
+- IMAGE_ROOTFS_SIZE: kích thước của rootfs final
+- IMAGE_FEATURES: danh sách các tính năng được cho phép trong image, bitbake tự tìm các gói thương ứng để hỗ trợ tính năng này. `https://docs.yoctoproject.org/scarthgap/ref-manual/features.html#ref-features-image`
+- IMAGE_FSTYPES: các format của image sẽ được build ra
+- IMAGE_LINGUAS: các ngôn ngữ được hỗ trọ trong image
+- IMAGE_PKGTYPE: loại gói phần mềm được build system sử dụng (.deb, .rpm, .ipk)
+- IMAGE_POSTPROCESS_COMMAND: các lệnh shell được dùng để xử lý hậu kì ngay trước khi image được đóng gói
+- EXTRA_IMAGEDEPENDS: các recipe muốn build cùng image, nhưng không cài bất cứ gì vào root filesystem (ví dụ như bootloader)
+## Ví dụ 1 image
+- image không cần `LICENSE` như recipe thường
+    ```c
+    SUMMARY = "Example image"
+    IMAGE_INSTALL = "packagegroup-core-boot dropbear ninvaders"
+    IMAGE_LINGUAS = " "
+    inherit core-image
+    ```
+## Quá trình tạo root filesystem
+- Quá trình tạo root filesystem 
+    + 1 thư mục rỗng sẽ được tạo ra để chuẩn bị làm hệ thống root filesystem
+    + Các phần mềm được khai báo trong `IMAGE_INSTALL` sé được cài đặt vào trong thư mục rootfilesystem đó
+    + các image sẽ được tạo ra dựa theo biến `IMAGE_FSTYPES`
+- Quá trình tạo rootfs phụ thuộc biến `IMAGE_PKGTYPE` (định nghĩa cách mà hệ thống quản lý các gói phần mềm), biến này nên được define vào image recipe
+    + Nếu không định nghĩa, bibtake tự lấy giá trị đầu tiên hợp lệ trong `PACKAGE_CLASSES`
+- Việc tự động cài các phần mềm vào rootfs được thực hiện bởi file class: `meta/classes-recipe/rootfs_${IMAGE_PKGTYPE}.bbclass`
+## Image types
+- `IMAGE_FSTYPES`: 
+    + khai báo loại file image
+    + có thể khai báo nhiều loại, và bitbake sẽ tạo ra mỗi loại 1 file
+    + Các image thường dùng là: `ext2, ext3, ext4, squashfs, cpio, jffs2, ubifs, tar.bz2, tar.gz,...`
+- Tạo 1 image type ngoài các image mà Poky cung cấp (core-image-minimal, ...)
+    + Nếu muốn tạo ra nhiều phân vùng trên thẻ nhớ, ta cần tạo image type riêng
+    + cần kế thừa `image_types`
+    + Phải define hàm: `IMAGE_CMD:<type>`
+    + sau đó append vào `IMAGE_TYPES`
+    + Ví dụ: 
+        ```c
+        # =================================================================
+        # BƯỚC 1: Kế thừa class mẹ theo đúng hướng dẫn của slide
+        # =================================================================
+        inherit image_types
+
+        # =================================================================
+        # BƯỚC 2: Định nghĩa hàm nhào nặn IMAGE_CMD cho định dạng "customext4"
+        # =================================================================
+        IMAGE_CMD:customext4 () {
+            # 1. Tạo một file image trống với kích thước được tính toán tự động
+            dd if=/dev/zero of=${IMGDEPLOYDIR}/${IMAGE_NAME}.rootfs.customext4 bs=1M count=${IMAGE_ROOTFS_SIZE}
+
+            # 2. Định dạng file trống này thành hệ thống tệp tin ext4
+            mkfs.ext4 -F ${IMGDEPLOYDIR}/${IMAGE_NAME}.rootfs.customext4
+
+            # 3. Mount (gắn) file này vào thư mục tạm và sao chép toàn bộ hệ điều hành vào
+            # (Yocto xử lý ngầm bước sao chép này từ thư mục ${IMAGE_ROOTFS})
+            oe_runmake_ext4fs ${IMAGE_ROOTFS} ${IMGDEPLOYDIR}/${IMAGE_NAME}.rootfs.customext4
+
+            # 4. Câu lệnh tối ưu: Tự động chạy lệnh kiểm tra và dọn dẹp phân vùng 
+            # nhằm loại bỏ các block trống thừa, giúp file nhẹ nhất có thể.
+            e2fsck -f -y ${IMGDEPLOYDIR}/${IMAGE_NAME}.rootfs.customext4
+            resize2fs -M ${IMGDEPLOYDIR}/${IMAGE_NAME}.rootfs.customext4
+        }
+
+        # =================================================================
+        # BƯỚC 3: Đăng ký định dạng này vào biến tổng của hệ thống Yocto
+        # =================================================================
+        IMAGE_TYPES += "customext4"
+        ```
+- Convert image type đã tạo
+    + khi tạo ra image rồi, thường file đó nặng, nên cần conver để nhẹ đi hoặc tạo thêm các file mã hóa
+    + Việc convert này như bước phụ sau khi image được tạo ra. Ví dụ tạo ra image ext4, thì class convert này tạo ra ext4.gz từ image đó
+    + cần tạo 1 class có kế thừa `image_types`
+    + file class này cần tạo function `CONVERSION_CMD:<type>`
+    + sau đó append file này vào biến `CONVERSIONTYPES`
+    + Khai báo thêm cho `IMAGE_TYPES`. Ví dụ `IMAGE_TYPES += "ext4.gz"`
+- wic
+    + 90% dùng wic
+    + output của yocto có các file `wic` để flash vào sdcard
+    + là tool để tạo image hoàn chỉnh có thể flash được 
+    + có khả năng tự động chia phân vùng (ngoại trừ raw flash partition và filesystems)
+    + có khả năng chọn chính xác file nào nằm ở phân vùng nào thông qua các plugin
+    + cấu trúc của 1 image được mô tả trong file `.wks` hoặc `.wks.in`
+    + wic có thể được mở rộng cấu hình ở bất kỳ layer nào
+    + Ví dụ:
+        ```c
+        WKS_FILE = "imx-uboot-custom.wks.in" // file mô tả cấu trúc image
+        IMAGE_FSTYPES = "wic.bmap wic" // yêu cầu output có 2 file có đuôi như này
+        ```
+        - File `imx-uboot-custom.wks.in`
+            ```c
+            part u-boot --source rawcopy --sourceparams="file=imx-boot" --no-table --align ${IMX_BOOT_SEEK}
+            part /boot --source bootimg-partition --use-uuid --fstype=vfat --label boot --active --align 8192 --size 64
+            part / --source rootfs --use-uuid --fstype=ext4 --label root --exclude-path=home/ --exclude-path=opt/ --align 8192
+            part /home --source rootfs --rootfs-dir=${IMAGE_ROOTFS}/home --use-uuid --fstype=ext4 --label home --align 8192
+            part /opt --source rootfs --rootfs-dir=${IMAGE_ROOTFS}/opt --use-uuid --fstype=ext4 --label opt --align 8192
+
+            bootloader --ptable msdos
+            ```
+        - bmap là công cụ như `dd` nhưng hiện đại hơn
+## Package groups
+- đây là cách để gom các gọi phần mềm có chức năng, mục đích sử dụng chung
+- Các packagegroup là recipe chứa 1 tổ hợp các gói cần thiết cho 1 chức năng nào đó, ví dụ để boot được device thì cần những gì thì sẽ được gom vào recipe `packagegroup-core-boot`
+- các package group được dùng trong các image recipe để lập ra các gói phần mềm cần cài đặt
+- về bản chất, 1 package group cũng là 1 recipe
+    + sử dụng class `packagegroup`
+    + các file binary được sinh ra không tự cài đặt, nó chỉ yêu cầu hệ thống cần cài các gói đi kèm
+- `PACKAGE_ARCH`:
+    + mặc định là `all`
+    + bắt buộc dùng `${MACHINE_ARCH}` khi package group phụ thuộc 1 machine
+- Các package group common:
+    + packagegroup-base
+    + packagegroup-core-boot
+    + packagegroup-core-buildessential
+    + packagegroup-core-nfs-client
+    + packagegroup-core-nfs-server
+    + packagegroup-core-tools-debug
+    + packagegroup-core-tools-profile
+- Ví dụ: `./meta/recipes-core/packagegroups/packagegroup-core-tools-debug.bb`
+    ```c
+    SUMMARY = "Debugging tools"
+    inherit packagegroup
+    RDEPENDS:${PN} = "\
+        gdb \
+        gdbserver \
+        strace"
+    ```
+## Thực hành 
+- `find -name packagegroups`: liệt kê các folder chứa các packagegroups
+- `IMAGE_FEATURES:append = "dbg-pkgs"`: cài thêm gói `-dbg` của các gói đang có trong hệ điều hành
+
+# Writing recipes - going further
