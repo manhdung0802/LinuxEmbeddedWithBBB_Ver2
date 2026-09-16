@@ -327,6 +327,7 @@
     + giá trị của `OVERRIDES` do hệ thống sinh ra dựa theo kiến trúc cpu
 - precedence: độ ưu tiên của các lệnh gán giá trị
     + lệnh nào càng chi tiết cụ thể về target, lệnh đó sẽ được ưu tiên hơn
+    + IMAGE_INSTALL: chỉ ra gói nào sẽ được cài vào hệ điều hành
     + ví dụ nếu khai báo:
         ```c
         IMAGE_INSTALL:beaglebone = "busybox mtd-utils i2c-tools"
@@ -421,8 +422,8 @@
     + lệnh thực thi task cụ thể: `bitbake -c <task> <target>`
 - Common variables
     + để giúp việc viết recipe dễ dàng hơn, 1 số biến tự động có sẵn:
-        - `BPN`: tên của recipe được lấy từ recipe file name
-        - `PN`: là BPN đi kèm tiền số (nativesdk-) hoặc hậu tố (-native)
+        - `BPN`: base package name, tên gói cơ cở
+        - `PN`: package name
         - `PV`: version của pkg được lấy từ recipe file name
         - `BP`: `${BPN}-${PV}`
     + tên và version của recipe thường khớp với tên và version của mã nguồn
@@ -1201,3 +1202,138 @@
 - `IMAGE_FEATURES:append = "dbg-pkgs"`: cài thêm gói `-dbg` của các gói đang có trong hệ điều hành
 
 # Writing recipes - going further
+## The per-recipe sysroot
+- Sysroot
+    + Là thư mục gốc logical chứa các header và library 
+    + Là nơi mà gcc tìm các tệp header và `ld` tìm kiếm các library
+    + thư mục này chứa:
+        - kernel headers
+        - C library và header
+        - các library khác và header của chúng
+- Cơ chế sysroot chung cũ của Yocto - Optional dependencies
+    + Nhược điểm: các phần mềm cần phụ thuộc nhau, nếu sai thứ tự có thể build lỗi
+    + Hầu hết các phần mềm đều có 1 script cấu hình để kiểm tra các library:
+        - sẽ báo lối nếu không tìm thấy dependencies
+        - kích hoạt thêm nhiều tính năng nếu dependencies được tìm thấy
+    + Vấn đề với các phụ thuộc tự động: kết quả có thể dựa vào thứ tự build. Ví dụ:
+        - `libpcap` được build trước `bluez5`
+            ```c
+            libpcap$ ./configure
+            checking for bluetooth/bluetooth.h... no
+            configure: Bluetooth sniffing is not supported; install bluez-lib devel to enable it
+            ```
+        - `libpcap` được build sau `bluez5`
+            ```c
+            libpcap$ ./configure
+            checking for bluetooth/bluetooth.h... yes
+            configure: Bluetooth sniffing is supported
+            ```
+- Per-recipe sysroot
+    + Thay vì dùng sysroot chung, bitbake thực thi 1 per-recipe sysroot
+    + Mục tiêu chính: kết quả build trên các môi trường khác nhau sẽ cho ra cùng 1 kết quả
+    + ![alt text](images/image-33.png)
+    + Trước khi thực sự build, mỗi recipe tự chuẩn bị sysroot của nó
+        - chứa lib, header của các recipe mà nó phụ thuộc (`DEPENDS`)
+        - đảm bảo quá trình cấu hình không phát hiện ra lib không được liệt kê rõ trong `DEPENDS` mà vẫn bị build 
+        - `${WORKDIR}/recipe-sysroot`: sysroot cho các recipe chạy trên target
+        - `${WORKDIR}/recipe-sysroot-native`: sysroot cho các recipe chạy trên host
+    + Sau khi build kết thúc, mỗi recipe tạo ra 1 sysroot riêng của nó
+        - đây là sysroot riêng chứa lib, header mà recipe này trực tiếp cung cấp
+        - được dùng làm đầu vào cho các recipe khác để tạo ra recipe sysroot của chúng
+        - `${WORKDIR}/sysroot-destdir`
+- The complete sysroot - sysroot hoàn chỉnh
+    + sysroot hoàn chỉnh được đặt ở:
+        - Cho mỗi image: `${WORKDIR}/recipe-sysroot`
+        - Trong SDK
+## Using python code in metadata
+- TODO
+## Variable flags - cờ của biến
+- Variable flags (hay varflags) được dùng để chứa thông tin thêm cho các task và các biến
+- Chúng được dùng để kiểm soát chức năng của task
+- Có thể tự do thêm các varflags
+- Danh sách và varflag được Yocto hỗ trợ: `https://docs.yoctoproject.org/bitbake/bitbake-user-manual/bitbake-user-manual-metadata.html#variable-flags`
+- Ví dụ: varflag thường nằm trong dấu `[..]`
+    + `SRC_URI[sha256sum] = "384324..."` - kiểm tra checksum của file tải về với 384324...
+    + `do_compile[dirs] = "${B}`: chuẩn bị sẵn thư mục ${B} trước khi biên dịch. Chưa có thì tạo, có rồi thì đi vào
+    + `do_settime[noexec] = "1"`: noexec: vô hiệu hóa việc thực thi task (1 là bỏ qua)
+    + `do_menuconfig[nostamp] = "1"`: không tạo file đóng dấu stamp, bắt buộc task luôn được chạy lại dù không có thay đổi
+    + `do_settime[doc] = do_settime[noexec] = "1"`: ghi chú cho task
+    + `do_patch[depends] = "quilt-native:do_populate_sysroot"`: thêm dependency cho task, chỉ được chạy sau khi quilt-native đã chuẩn bị xong sysroot
+## Package features
+- Bật tắt các tính năng của ứng dụng mà có thể được build dựa theo nhu cầu
+- tránh được việc phải build toàn bộ
+- Ví dụ: ConnMan: chỉ được build nếu target có phần cứng Bluetooth
+- `PACKAGECONFIG`: dùng để cấu hình bản build chi tiết đến từng tính năng
+    + nó chứa thông tin các tính năng được bật
+    + `PACKAGECONFIG[<feature>] = "a, b, c, d, e, f"` nhận tới 6 args, ngăn cách bởi dấu phẩy
+        - a: điền a vào biến `EXTRA_OECONF` nếu feature được bật
+        - b: điền b vào biến `EXTRA_OECONF` nếu feature không được bật
+        - c: điền c vào `DEPENDS` nếu feature được bật
+        - d: điền d vào `RDEPENDS` nếu feature được bật
+        - e: thêm e vào `RRECOMMENDS` nếu feature được bật
+        - f: thêm f để tránh build cùng abcde nếu f có thể gây xung đột với acbde
+    + Ví dụ: 
+        - ![alt text](images/image-34.png)
+    + Bật features trong PACKAGECONFIG
+        - trong file bbappend:
+            ```c
+            PACKAGECONFIG += "<feature>"
+            PACKAGECONFIG += "tui"
+            ```
+        - trong file config (ví dụ distro conf)
+            ```c
+            PACKAGECONFIG:append:pn-<recipename> = " <feature>"
+            PACKAGECONFIG:append:pn-gdb = " tui"
+            ```
+    + Kiểm tra các flags khả dụng trong PACKAGECONFIG
+        - `${POKY_DIR}/scripts/contrib/list-packageconfig-flags.py`
+            + show các varflag của PACKAGECONFIG khả dụng cho mỗi recipe
+            + thêm `-a` vào cuối để thêm chi tiết
+## Condition features - tính năng có điều kiện
+- Ví dụ: 
+    + ![alt text](images/image-35.png)
+    + `bb.utils.contains(variable, checkval, trueval, falseval, d)`: kiểm tra checkval có tồn tại trong variable hay không, nếu có thì trả về trueval, không thì trả về falseval, d là bitbake datastore
+    + `bb.utils.filter(variable, checkvalues, d)`: trả về 3g hoặc systemd nếu nó có nằm trong DISTRO_FEATURES
+## Package splitting - cơ chế chia nhỏ gói của Yocto
+- ![alt text](images/image-36.png)
+    + do_install: copy tất cả file vào thư mục D (${WORKDIR}/image)
+    + do_package: chia các file trong các package vào ${WORKDIR}/packages-split dựa vào biến `PACKAGES` và `FILES`
+    + do_package_write_rpm: đóng gói thành phẩm 
+- `PACKAGES`
+    - `PACKAGES`: liệt kê các gói sẽ được build
+    - `PACKAGES_DYNAMIC`: cho phép kiểm tra dependencies khi các gói tùy chọn được đáp ứng
+    - `ALLOW_EMPTY`: cho phép tạo ra 1 gói thậm chí nếu nó trống (không chứa file nào)
+    - `CONFFILES`: ngăn các file cấu hình khỏi bị ghi đè trong quá trình cập nhật Package Management
+    System
+- `FILES`
+    + liệt kê các file được bao gồm trong package
+    + phải chỉ định cụ thể package (FILES:${PN}, FILES:${PN}-dev, ...)
+    + Cấu hình mặc định trong `meta/conf/bitbake.conf`:
+        - ![alt text](images/image-37.png)
+    + các package chỉ đặt tên là ${PN} sẽ được cài vào root filesystem
+    + Mặc định trong Poky, ${PN} là:
+        - ![alt text](images/image-38.png)
+- Ví dụ:
+    + ![alt text](images/image-39.png)
+    + gói kexec và kdump sẽ được build
+    + FILE:*: gói kexec sẽ chứa file binary ${sbindir}/kexec, tương tự cho kdump
+## Inspecting packages - kiểm tra gói
+- `oe-pkgdata-util`: tool để kiểm tra gói
+- `oe-pkgdata-util find-path /bin/busybox`: check file /bin/busybox đang ở trong package nào
+- `oe-pkgdata-util list-pkg-files busybox`: liệt kê các file có trong gói busybox
+- `oe-pkgdata-util lookup-recipe kdump`: check xem recipe nào đã tạo ra gói kdump
+## Chi tiết về dependencies
+- `DEPENDS`: mô tả phụ thuộc lúc build
+    + dùng khi 1 chương trình cần các file thư viện hoặc header để có thể build được, nói cách khác, chương trình này cần file phụ thuộc đó phải nằm sẵn trong thư mục sysroot của nó
+    + Yocto sẽ tự build trước các gói được khai báo trước, rồi copy các file cần thiết vào thư mục WORKDIR của recipe (ví dụ: ninvaders.bb)
+- `RDEPENDS`: mô tả phụ thuộc lúc chạy runtime
+    + dùng khi 1 chương trình cần dùng chương trình khác trong lúc runtime thông qua cơ chế socket, dbus,... hoặc đơn giản là gọi thực thi chương trình khác đó
+    + không cần phụ thuộc lúc build
+- `RRECOMMENDS`: tương tự `RDEPENDS`
+    + nếu phụ thuộc không được build, hệ thống sẽ bỏ qua nó chứ không báo lỗi
+    + dùng khi 1 gói phần mềm mở rộng các tính năng nhưng tính năng đó đã bị vô hiệu hóa trong lần nào đó hoặc khi kernel module đã có sẵn trong kernel rồi nên không cần build lại nữa
+
+# Licensing 
+- TODO
+
+# The Yocto Project SDK
