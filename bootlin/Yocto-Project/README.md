@@ -1337,3 +1337,100 @@
 - TODO
 
 # The Yocto Project SDK
+## Giới thiệu SDK
+- SDK là 1 tập hợp các tool cho phép lập trình ứng dụng cho target
+- Nó thường cung cấp các tool bao gồm:
+    + compiler hoặc cross-compile
+    + Linker: trình liên kết gộp các mã nguồn thành 1 file thực thi duy nhất
+    + library header
+    + Debugger
+    + Custom utilities
+## SDK của Yocto project
+- SDK của Yocto gồm toolchain, lib header, tool cần để phát triển ứng dụng
+## Các SDK đang có sẵn
+- Các SDK được tạo ra bởi Poky sẽ đi kèm 1 shell script. Script này thực thi sẽ giải nén tool và setup môi trường. Người phát triển chỉ cần lấy file script này và chạy nó để cài môi trường phát triển phần mềm mà không cần cài cả mã nguồn Yocto
+- generic SDK: gồm 1 toolchain, common tools, 1 tập hợp thư viện cơ bản
+    + THường dùng cho low-level development, chỉ cần toolchain để build bootloader và kernel
+    + Recipe tạo ra toolchain này: `bitbake meta-toolchain`
+    + script của SDK này nằm ở `$BUILDDIR/tmp/deploy/sdk/scriptname.sh`
+    + SDK sẽ được cấu hình để tương thích với MACHINE
+- image-based SDK: gồm 1 generic SDK và sysrooot tương ứng với target root filesystem
+    + dùng để phát triển app chạy trên target
+    + có task `populate_sdk` trong SDK này để tạo các hành vi tương ứng cho mỗi image
+    + để tạo SDK cho core-image-minimal chẳng hạn: `bitbake -c populate_sdk core-image-minimal`
+    + script của SDK này ở `$BUILDDIR/tmp/deploy/sdk/scripname.sh`
+    + SDK sẽ được cấu hình để tương thích với MACHINE
+## Thêm packages vào SDK
+- 2 biến để kiểm soát những gì sẽ được cài vào SDK
+    + `TOOLCHAIN_TARGET_TASK`: danh sách các package cho target sẽ được đưa vào SDK
+    + `TOOLCHAIN_HOST_TASK`: danh sách các package cho host sẽ được đưa vào SDK
+    + cả 2 có thể được append thêm tool hoặc library
+- Ví dụ: `TOOLCHAIN_HOST_TASK:append = " nativesdk-curl"`
+## Format của SDK
+- cả 2 loại SDK đều có thể được cài đặt bằng cách chạy script
+- các script đó sẽ giải nén, cài toolchain, file mà SDK đó cung cấp
+- Để cài 1 SDK, lấy script và chạy nó. Script sẽ hỏi nơi cần cài SDK. Mặc định là `/opt/poky/<version>`
+- ![alt text](images/image-40.png)
+## Cách sử dụng SDK
+- để dùng SDK, chạy script trong thư mục SDK đã cài để setup môi trường
+    + ![alt text](images/image-41.png)
+- Sau đó, `PATH` sẽ được update để có thể chạy được các file binary của toolchain
+- biến môi trường sẽ được export để dùng tool
+## Các thành phần trong thư mục SDK sau khi cài - Ví dụ
+- `environment-setup-cortexa8hf-neon-poky-linux-gnueabi`: xuất biến môi trường
+- `site-config-cortexa8hf-neon-poky-linux-gnueabi`: các biến được dùng khi tạo toolchain
+- `sysroots`: SDK bin, header, lib. Chứa 1 thự mục cho target và 1 cho host
+- `version-cortexa8hf-neon-poky-linux-gnueabi`: thông tin về phiên bản
+## Biến môi trường của SDK
+- `CC`: đường dẫn cho file bin của C compiler
+- `CFALGS`: các cờ để dùng cho C compiler
+- `CXX`: C++ compiler
+- `CXXFLAGS`: cờ dùng cho C++ compiler
+- `LD`: linker
+- `LDFLAGS`: chờ cho linker
+- `ARCH`: dùng cho kernel compiler
+- `CROSS_COMPILE`: 
+- `GDB`: debugger GNU cho SDK
+- `OBJDUMP`: SDK objdump
+- ...
+- Ví dụ: `$CC -o example example.c`
+## Thực hành
+- Sau khi cài sdk bằng file script rồi, cần chạy `source environment_....` để xuất biến môi trường làm việc cho terminal
+    + khi đã export biến môi trường rồi, Makefile có thể không cần định nghĩa 1 số biến nữa vì có thể sẽ ghi đè vào biến từ lệnh source ở trên
+
+# Devtool
+## Overview
+- Devtool là tập hợp các tiện ích để dễ dàng tích hợp và phát triển recipe Yocto
+- Được dùng để:
+    + tạo recipe cho 1 app 
+    + chỉnh sửa recipe đã tồn tại và các source liên quan nó
+    + nâng cấp 1 recipe đã tồn tại để nó dùng được source mới
+- Devtool có thể thêm 1 layer mới, quản lý tự động trong folder `$BUILDDIR/workspace`
+    + không được chỉnh sửa thủ công trong folder này
+    + mọi thao tác cần thực hiện qua lệnh devtool
+- Sau đó nó có thể thêm, append recipe vào layer này để recipe có thể trỏ tới đường dẫn của source. (`$BUILDDIR/workspace/sources/`)
+## Sử dụng devtool
+- 3 cách để tạo 1 project devtool
+    + Để tạo 1 recipe mới: `devtool add <recipe> <fetchURI>`
+        - fetchURI: đường link local hoặc remote của source
+        - có thể chèn thêm: `--version 1,0` để chọn ver của source
+    + Để chỉnh sửa source từ 1 recipe đã tồn tại: `devtool modify <recipe>`
+    + Để nâng cấp source của recipe: `devtool upgrade -V <version> <recipe>`
+        - version: phiên bản mới của source của app
+- Khi 1 devtool project đã bắt đầu, có thể dùng các lệnh:   
+    + `devtool edit-recipe <recipe>`: chỉnh sửa recipe
+    + `devtool build <recipe>`: build recipe
+    + `devtool build-image <image>`: build image kèm với package của recipe 
+    + `devtool deploy-target <recipe> <target>`: nạp package vào target (target phải đang chạy SSH server)
+        - lệnh này nạp tất cả file trong folder `build/tmp/work/cortexa8t2hf-neon-poky-linux-gnueabi/<project>/2.10/image/usr` vào target
+        - `devtool deploy-target hello root@192.168.0.100`
+    + `devtool update-recipe <recipe>`: tạo patch từ git commit 
+    + `devtool reset <recipe>`: gỡ recipe khỏi quản lý của devtool. Các layer tiêu chuẩn và source remote được dùng lại như thường. Lệnh này dùng khi muốn dọn sạch devtool để làm lại từ đầu hoặc sau khi đã chỉnh sửa recipe, layer xong
+    + `devtool undeploy-target hello root@192.168.0.100`: gỡ hello khỏi target
+    + `devtool finish -f hello ../meta-bootlinlabs/`: kết thúc devtool và đưa hello vào 1 layer đang có
+        - sau lệnh này thì folder của recipe hello trong `build/workspace/sources` nữa. Source của hello đã được đưa vào `build/workspace/attic`
+## Thực hành
+- khi tạo 1 devtool project mới, đường dẫn layer của nó sẽ được tự động thêm vào `conf/bblayers.conf`
+
+# Quản lý tự động các layer - Automating layer management
+- 
