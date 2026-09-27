@@ -564,3 +564,36 @@ class Dog{
 ## Lớp StatefulWidget vs StatelessWidget
 - StatelessWidget: không thay đổi trạng thái suốt vòng đời
     + gõ nhanh `stless`
+- StatefulWidget
+## Các thuộc tính thường dùng
+- Text
+- TextStyle: dùng trong thuộc tính style của Text 
+    + custom font: 
+        - tải file font ttf 
+        - đưa font vào folder project (tạo folder assets/fonts)
+        - thêm font vào pubspec.yaml: mục config fonts
+        - muốn dùng thì set thuộc tính fontFamily
+        - ![alt text](images/image.png)
+        - ![alt text](images/image-1.png)
+            + tên font vẫn là Hind, nhưng khi set weight, nó sẽ tự chọn font tương ứng
+    + để set toàn bộ màn hình dùng chung 1 font hoặc 1 theme
+        - ![alt text](images/image-2.png)
+- RichText: custom nhiều kiểu chữ trong 1 hàng
+    + dùng kết hợp TextSpan
+- Padding và Margin
+    + Padding: khoảng cách với nội dung chính nó
+    + Margin: khoảng cách với các item xung quanh
+    + `EdgeInsets.all(x)`: cách đều 4 cạnh x px, ngoài all còn nhiều cái khác
+- TextButton: button với chữ
+    + muốn button bị disable, set onPressed là null
+- ElevatedButton: dùng nhiều nhất
+    + nhiều kiểu custom hơn TextButton
+    + muốn có icon: `ElevatedButton.icon`
+- OutlinedButton: ít dùng hơn ElevatedButton
+- Container:
+    + là 1 khung chứa
+- Bài 45
+
+# FFI
+## Cách gọi 1 function trong C
+- Nguyên lý: Mở lib C -> tìm function -> gọi function 
