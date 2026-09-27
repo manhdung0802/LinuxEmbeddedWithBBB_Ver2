@@ -554,6 +554,8 @@ class Dog{
     + `flutter create --org com.tencongty my_app`: chỉ định thêm package name
     + `flutter create -a java -i objc my_app`: chỉ định ngôn ngữ lập trình
     + `flutter create --platforms android,ios my_app`: chỉ định nền tảng
+    + `dart create --template=console utils_example`: tạo project console đơn giản
+    + `DISPLAY=:0 flutter run --no-enable-impeller`
 - Thêm dependency
     + `flutter pub add http` // thay http bằng dependencied mình muốn
 ## Các thư mục trong folder flutter
@@ -592,8 +594,173 @@ class Dog{
 - OutlinedButton: ít dùng hơn ElevatedButton
 - Container:
     + là 1 khung chứa
+- StreamBuilder: widget lắng nghe Stream và tự rebuild UI khi có data mới, không cần setState
+    + `stream`: Stream cần lắng nghe
+    + `builder`: hàm rebuild UI, nhận `AsyncSnapshot` chứa trạng thái stream
+    + `snapshot.hasData`: đã có data; `snapshot.hasError`: bị lỗi; `snapshot.connectionState`: trạng thái kết nối
+    + `snapshot.data`: giá trị mới nhất từ stream
+    ```dart
+    StreamBuilder<Todo>(
+      stream: _todoStream,
+      builder: (context, AsyncSnapshot<Todo> snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) return CircularProgressIndicator();
+        if (snapshot.hasError) return Text('Lỗi: ${snapshot.error}');
+        if (snapshot.hasData) return Text(snapshot.data!.title);
+        return Text('Chưa có data');
+      },
+    )
+    ```
 - Bài 45
 
 # FFI
-## Cách gọi 1 function trong C
+## Cách gọi 1 function trong C/C++
 - Nguyên lý: Mở lib C -> tìm function -> gọi function 
+```Dart
+dylib.lookupFunction<Void Function(), void Function()>('hello');
+//                   ^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^
+//                   [1] Kiểu C      [2] Kiểu Dart
+```
+
+# gRPC
+- `https://grpc.io/docs/`
+- **gRPC là gì?** Giao thức giao tiếp giữa các service (client ↔ server) qua mạng, nhanh hơn REST vì dùng binary (Protobuf) thay vì JSON, và có thể gọi hàm từ xa như gọi hàm local
+- **Protobuf là gì?** Định dạng serialize dữ liệu của Google — nhỏ gọn, nhanh, và có schema chặt chẽ
+- Dependencies cần thiết: `grpc` (framework gRPC), `protobuf` (serialize/deserialize message)
+- Cấu trúc project gồm 3 phần tách biệt:
+    ```
+    gRPC_learning/
+    ├── protos/   ← "hợp đồng" chung: định nghĩa kiểu dữ liệu và interface — cả server lẫn client dùng chung
+    ├── server/   ← Dart server: implement logic xử lý request
+    └── client/   ← Flutter app: gọi server như gọi hàm Dart thông thường
+    ```
+- Các bước thực hiện:
+    - **Bước 1: Tạo package `protos`** — "hợp đồng" dùng chung, tạo 1 lần dùng cho cả server lẫn client
+        + `dart create --template=package protos`: tạo dart package (không phải app, không có `bin/`)
+        + Thêm dependencies vào `pubspec.yaml`:
+            ```yaml
+            dependencies:
+              grpc: ^5.1.0      # framework gRPC cho Dart
+              protobuf: ^6.1.0  # thư viện serialize Protobuf
+            ```
+        + Tạo file `.proto` — ngôn ngữ trung lập để mô tả dữ liệu và service, sau đó gen ra code cho bất kỳ ngôn ngữ nào:
+            ```proto
+            syntax = "proto3";
+
+            // Message = kiểu dữ liệu sẽ truyền qua mạng (giống class/struct)
+            message Todo { int32 id = 1; string title = 2; bool completed = 3; }
+
+            // Service = định nghĩa các "hàm" mà server cung cấp
+            service TodoService {
+              rpc getTodo(GetTodoByIdRequest) returns (Todo); // nhận request, trả về Todo
+            }
+
+            message GetTodoByIdRequest { int32 id = 1; } // tham số của hàm getTodo
+            ```
+        + Gen code Dart từ file `.proto` — lệnh này tự động tạo ra các class Dart tương ứng:
+            ```bash
+            dart pub global activate protoc_plugin  # cài plugin để protoc hiểu Dart
+            protoc --dart_out=grpc:lib/src/generated -Iprotos protos/*
+            # --dart_out=grpc: gen cả message lẫn gRPC service stub
+            # -Iprotos: thư mục chứa file .proto
+            # lib/src/generated: thư mục đầu ra
+            ```
+            Kết quả sinh ra 4 file:
+            - `todo.pb.dart` — các class message (Todo, GetTodoByIdRequest)
+            - `todo.pbenum.dart` — các enum trong proto
+            - `todo.pbjson.dart` — hỗ trợ convert sang JSON
+            - `todo.pbgrpc.dart` — `TodoServiceBase` (server implement) và `TodoServiceClient` (client dùng)
+        + Export tất cả vào `lib/protos.dart` để server/client chỉ cần `import 'package:protos/protos.dart'`:
+            ```dart
+            export 'src/generated/todo.pb.dart';
+            export 'src/generated/todo.pbenum.dart';
+            export 'src/generated/todo.pbjson.dart';
+            export 'src/generated/todo.pbgrpc.dart';
+            export 'package:grpc/grpc.dart'; // re-export luôn để client/server không cần import grpc riêng
+            ```
+    - **Bước 2: Tạo server** — implement logic xử lý request từ client
+        + `dart create --template=console server`: tạo Dart console project (có `bin/` để chạy)
+        + Thêm dependency `protos` vào `pubspec.yaml` bằng path local (không publish lên pub.dev):
+            ```yaml
+            dependencies:
+              protos:
+                path: ../protos  # trỏ trực tiếp tới folder protos
+            ```
+        + Tạo `lib/todo_service.dart` — extend `TodoServiceBase` (được gen ra từ proto) và override từng method:
+            ```dart
+            class TodoService extends TodoServiceBase {
+              @override  // override hàm getTodo đã khai báo trong .proto
+              Future<Todo> getTodo(ServiceCall call, GetTodoByIdRequest request) async {
+                // call: metadata của kết nối (header, timeout...)
+                // request: tham số từ client (đã được deserialize tự động)
+                return Todo(id: request.id, title: 'title', completed: false);
+                // trả về Todo, gRPC tự serialize và gửi về client
+              }
+            }
+            ```
+        + Tạo `bin/server.dart` — đăng ký service và lắng nghe port:
+            ```dart
+            final server = Server.create(services: [TodoService()]); // đăng ký service
+            await server.serve(port: 8080); // lắng nghe cổng 8080
+            ```
+        + Chạy server: `dart bin/server.dart`
+    - **Bước 3: Tạo Flutter client** — gọi server qua gRPC
+        + `flutter create client`: tạo Flutter app
+        + Thêm dependency `protos` vào `pubspec.yaml` (giống server)
+        + Trong `initState()` — thiết lập kết nối tới server (làm 1 lần khi widget khởi tạo):
+            ```dart
+            _channel = ClientChannel(
+              'localhost',      // địa chỉ server
+              port: 8080,
+              options: ChannelOptions(
+                credentials: ChannelCredentials.insecure(), // không dùng TLS (dev mode)
+              ),
+            );
+            _stub = TodoServiceClient(_channel); // stub = đối tượng đại diện cho server, dùng để gọi RPC
+            ```
+        + Gọi RPC — gọi y hệt như gọi hàm Dart, gRPC lo phần serialize/network/deserialize:
+            ```dart
+            final todo = await _stub.getTodo(GetTodoByIdRequest(id: 1));
+            // _stub.getTodo() thực ra gửi request qua mạng, chờ response, rồi trả về Todo
+            ```
+- **Server Streaming** — server gửi data liên tục xuống client (realtime)
+    - Thêm `stream` vào trước kiểu trả về trong file `.proto`:
+        ```proto
+        service TodoService {
+          rpc getTodo(GetTodoByIdRequest) returns (Todo);           // Unary: 1 request → 1 response
+          rpc getTodoStream(GetTodoByIdRequest) returns (stream Todo); // Streaming: 1 request → nhiều response
+        }
+        ```
+    - **Server** dùng `async*` + `yield` để gửi từng message, `await Future.delayed` để giãn cách:
+        ```dart
+        @override
+        Stream<Todo> getTodoStream(ServiceCall call, GetTodoByIdRequest request) async* {
+          while (true) {
+            final id = Random().nextInt(100);
+            yield Todo(id: id, title: 'title $id', completed: false);
+            await Future.delayed(Duration(seconds: 1)); // ⚠️ phải có await, thiếu await → spam stream → lỗi
+          }
+        }
+        ```
+    - **Client** nhận stream bằng `StreamBuilder` — tự động rebuild UI mỗi khi có data mới:
+        ```dart
+        // initState: khởi tạo stream 1 lần
+        _todoStream = _stub.getTodoStream(GetTodoByIdRequest(id: 1));
+
+        // build: dùng StreamBuilder để lắng nghe
+        StreamBuilder(
+          stream: _todoStream,
+          builder: (context, AsyncSnapshot snapshot) {
+            if (snapshot.hasData) {
+              final todo = snapshot.data as Todo;
+              return Text(todo.title); // tự rebuild mỗi giây
+            }
+            return Text('Loading');
+          },
+        )
+        ```
+    - **Lưu ý quan trọng**: `StreamBuilder` khác `setState` ở chỗ không cần gọi thủ công — nó tự lắng nghe stream và rebuild UI khi có event mới
+
+# BLoC, Cubit, GetIt.
+- GetIt: tương đương singleton
+- BLoC, Cubit: tương đương state machine, tách xử lý của UI khỏi backend, giúp việc code,test backend có thể độc lập
+- flutter/BLoC_Cubit_Dio_GetIt/counter_demo/README.md

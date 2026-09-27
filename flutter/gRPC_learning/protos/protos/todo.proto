@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+message Todo {
+  int32 id = 1;
+  string title = 2;
+  bool completed = 3;
+}
+
+service TodoService {
+  rpc getTodo(GetTodoByIdRequest) returns (Todo);
+  rpc getTodoStream(GetTodoByIdRequest) returns (stream Todo);
+
+}
+
+message GetTodoByIdRequest {
+  int32 id = 1;
+}
