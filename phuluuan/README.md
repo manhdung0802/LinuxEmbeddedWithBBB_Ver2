@@ -1,3 +1,5 @@
+# Source code
+- https://github.com/phuthodien/training_linux_embedded_v2/tree/master
 # Process trong userspace
 - Process là 1 thực thể được khởi tạo từ 1 file chương trình trên ổ cứng, process sẽ quản lý các thread của nó.
 - 1 process có thể có nhiều thread
@@ -268,4 +270,81 @@ int main(int argc, char *argv[]){
     + Tóm tắt lại:
         - ![alt text](images/image-5.png)
 - ứng dụng: có thể viết chương trình truyền nhận file giữa 2 máy tính
-- 38:42
+
+# Shared memory
+- Page - Đơn vị quản lý bộ nhớ
+    + 1 Page 4KB, tất cả byte trong page có cùng thuộc tính (read only, write only, ...)
+    + Mỗi 1 page có 1 struct page để lưu các thông tin của page
+    + flag của page: lưu thuộc tính của page
+- Bản chất việc shared memory
+    + hệ điều hành cấp phát 1 page
+    + trong page này thì flags là shared
+    + lúc này 1 process khác được quyền truy cập vào page này
+    + mỗi khi map 1 page vào không gian bộ nhớ của process, process sẽ kiểm tra trường owner có khớp không, nếu khớp thì được truy cập vào page đó
+- Các API để code shared memory:
+    + shm: API đời cũ
+    + mmap: API đời mới
+        - nguyên lý: 
+            + Đặt vấn đề: 2 process khác nhau thì có không gian địa chỉ khác nhau thông qua cơ chế virtual memory, nếu thông thường thì process kia không đọc được memory của process này. Vì vậy không thể shared qua cơ chế địa chỉ
+            + map memory thông qua file. Để có thể shared momery thì phải dùng cơ chế mang tính toàn cục trong cả hệ điều hành, đó là cơ chế file system
+        - ![alt text](images/image-6.png)
+            + tạo file fd để mang cơ chế toàn cục
+            + set memory size: nên tạo size bằng bội của 1 page size 4KB * n
+                - nếu file fd trỏ vào 1 file thật thì size bằng file thật đó luôn, không cần set size
+                - nếu tạo file fd mới, cần set size
+                - sau khi tạo size thì trong hệ điều hành có vùng nhớ vật lý thật
+            + tiếp theo map vùng nhớ vật lý đó vào không gian virtual memory của process
+                - tức là cập nhật giá trị vào virtual table để MMU map địa chỉ
+            + sau khi map thì truy cập như thường
+            + nếu không cần nữa, thì unmap vùng shared mem, unmap chỉ gỡ map thôi chứ chưa free memory
+            + cuối cùng mới remove memory vật lý
+- Code:
+    ```c
+    #include <sys/shm.h>
+    // tạo file fd để định danh cho vùng shared memory với flag O_CREAT cho tiến trình đầu tiên, các tiến trình sau không cần O_CREAT nữa vì process đầu tiên đã tạo rồi
+    // nếu open /dev/mem thì có thể thao tác trực tiếp với thanh ghi luôn
+    int fd = shm_open(const char *name, O_CREAT | O_RDWR, 0666); 
+
+    // set size cho shared memory
+    // nếu mở file thật trong bộ nhớ thì không cần bước này
+    int ftruncate(int fd, off_t lenght)
+
+    // cấp phát địa chỉ ảo để map vùng địa chỉ vật lý vừa được cấp
+    void *mmap(void *addr, size_t lenght, int prot, int flag, int fs, off_t offset)
+        // addr: vùng địa chỉ ảo mà process bất đầu tìm để map cho vùng nhớ shared memory
+        // length: chọn kích thước muốn map của vùng shared memory
+        // prot: thay đổi quyền của vùng nhớ (PROT_READ, PROT_WRITE)
+        // flag: thuộc tính của shared memory (MAP_SHARED, ...)
+
+    // unmap
+    int munmap(void *addr, size_t length)
+
+    // free shared memory
+    int shm_unlink(const char *name)
+    ```
+    + writer:
+        - ![alt text](images/image-7.png)
+    + reader:
+        - ![alt text](images/image-8.png)
+
+# Watchdog driver
+- Khái niệm:    
+    + là phần cứng liên tục kiểm tra trạng thái hệ thống
+    + nó có thanh ghi, định kỳ yêu cầu OS ghi giá trị vào đó, gọi là ping
+    + nếu sau 1 thời gian đã định mà watchdog không nhận được ping, watchdog sẽ gửi reset signal vào thẳng CPU để hardware reset
+- Watchdog có các thanh ghi để cấu hình
+- Tiêu chuẩn của Linux dành cho watchdog
+    + ![alt text](images/image-9.png)
+    + watchdog deamon làm nhiệm vụ tương tác với watchdog
+    + các cấu hình của watchdog được lưu trong Watchdog.conf (thường nằm trong /etc)
+    + khi boot lên, deamon đọc file config rồi cấu hình cho watchdog thông qua `/dev/watchdog`
+    + sau khi config, định kỳ deamon sẽ ping cho `/dev/watchdog`
+    + watchdog driver có nhiệm vụ tạo ra `/dev/watchdog`
+- Watchdog kernel API
+    + `include /linux/watchdog.h`
+    + `struct watchdog_device`
+    + `struct watchdog_ops` tương tự file_operation
+- Watchdog trong device tree
+    + wdt1, wdt2, ...
+- Watchdog driver example:
+    + `phuluuan\watchdog\watchdog_driver.c` 
