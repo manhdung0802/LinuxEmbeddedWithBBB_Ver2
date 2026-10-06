@@ -24,3 +24,5 @@ yocto-bbb-labs
 lichee
 
 wayland/code/wlroots
+
+wayland/code/wlroots_src/wlroots

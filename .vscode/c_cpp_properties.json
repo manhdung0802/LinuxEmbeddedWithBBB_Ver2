@@ -32,7 +32,7 @@
                     "${workspaceFolder}/bootlin/linux-kernel/linux-kernel-bbb-labs/src/linux/**",
                     "${workspaceFolder}/**"
                 ],
-                "limitSymbolsToIncludedHeaders": false,
+                "limitSymbolsToIncludedHeaders": false
                 // "databaseFilename": "${workspaceFolder}/.vscode/.vsc_cache.db"
             }
         },
