@@ -22,3 +22,5 @@ bootlin/linux-kernel/linux-kernel-bbb-labs/*
 yocto-bbb-labs
 .vscode
 lichee
+
+wayland/code/wlroots

@@ -114,3 +114,41 @@
         - cần khai báo bàn phím là 1 lớp phủ - layer và yêu cầu compositor không focus vào bàn phím khi click chuột vào nó
 
 # Viết client wayland bằng C
+- `wayland/code/first_wayland_client`
+- `wl_display_connect(NULL)`: tìm `wayland-0` và kết nối vào
+- `wl_display_get_registry()`: yêu cầu compositor cấp danh sách các tính năng
+- `wl_registry_add_listener()`: đăng ký callback để nhận event từ compositor
+- `wl_display_roundtrip()`: gửi tất cả request trong Socket tới compositor và chặn lại cho tới khi compositor gửi hết các event cần thiết
+- `wl_registry_bind`: đăng ký dùng tài nguyên này và cấp object thuộc loại mà bind
+- biên dịch: `gcc -o client client.c -lwayland-client`
+
+# Vẽ bằng GPU-EGL và DMA-BUF
+- khi muốn dùng GPU để vẽ, nó thường dùng các thư viện đồ họa như OpenGL hoặc Vulkan. Nhưng có vấn đề là OpenGL chỉ nói chuyện voiwss GPU, hoàn toàn không biết wayland hay cửa sổ là gì. Wayland cũng chỉ biết quản lý cửa sổ.
+- Để OpenGL và wayland kết hợp được với nhau, ta cần EGL và DMA-BUF
+## EGL
+- là thư viện dùng để giao tiếp giữa OpenGL và Wayland
+- cách mà EGL hoạt động:
+    + client wayland tạo ra 1 `wl_surface`
+    + ta đưa `wl_surface` này cho EGL
+    + EGL bọc `wl_surface` này thành object mới: `EGLSurface`
+    + Bây giờ, OpenGL có thể vẽ hình lên `EGLSurface` này
+    + Khi EGL vẽ xong, nó đóng gói hình ảnh và gửi request tới cho wayland compositor
+- nhờ có EGL mà ta không cần thủ công tạo buffer hay tính toán kích thước ảnh nữa
+## DMA-BUF - chia sẻ VRAM của GPU
+- cùng mục tiêu như shared memory trong `wl_shm` nhưng áp dụng cho VRAM của GPU
+- các bước:
+    + client vẽ ảnh trong VRAM
+    + linux cấp cho client của khóa để trỏ thằng vào VRAM
+    + client gửi khóa này cho compositor qua socket
+    + compositor lấy khóa này, ra lệnh cho GPU xuất hình
+
+# Compositor
+- cấu trúc của compositor cực phức tạp
+    + ![alt text](images/image-3.png)
+- thư viện `wlroots` giúp xử lý việc phức tạp trong quá trình tạo compositor này
+## wlroots
+- 4 thành phần cốt lõi bạn phải quản lý trong code:
+    + wl_display: Bộ não chính. Nó quản lý vòng lặp sự kiện (Event Loop) và giao tiếp Socket với các Client.
+    + wlr_backend: Tầng giao tiếp phần cứng. Nó tự động tìm Card màn hình (DRM) và thiết bị nhập (libinput).
+    + wlr_renderer & wlr_allocator: Chịu trách nhiệm vẽ ảnh lên màn hình (bằng OpenGL/GLES2) và cấp phát bộ nhớ RAM/VRAM.
+    + Các cấu trúc dữ liệu tự định nghĩa: Bạn phải tự tạo ra các struct bằng C để lưu danh sách các cửa sổ đang mở, vị trí chuột, và trạng thái bàn phím.

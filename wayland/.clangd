@@ -1,0 +1,24 @@
+CompileFlags:
+  # Tránh việc clangd tự động lấy compile_commands.json của kernel ở thư mục gốc
+  CompilationDatabase: none
+  Compiler: gcc
+  Add:
+    - -std=c23
+    - -Wall
+    - -Wextra
+    - -DWLR_USE_UNSTABLE
+    - -I/usr/include
+    - -I/usr/local/include
+    - -I/usr/include/pixman-1
+    - -I/home/as/Desktop/LinuxEmbeddedWithBBB_Ver2/wayland/code/wlroots/include
+    - -I/home/as/Desktop/LinuxEmbeddedWithBBB_Ver2/wayland/code/wlroots/build/include
+    - -I/home/as/Desktop/LinuxEmbeddedWithBBB_Ver2/wayland/code/wlroots/subprojects/libdrm
+    - -I/home/as/Desktop/LinuxEmbeddedWithBBB_Ver2/wayland/code/wlroots/subprojects/libdrm/include/drm
+    - -I/home/as/Desktop/LinuxEmbeddedWithBBB_Ver2/wayland/code/wlroots/subprojects/wayland-protocols/include
+    - -I/home/as/Desktop/LinuxEmbeddedWithBBB_Ver2/wayland/code/wlroots/subprojects/libdisplay-info/include
+    - -I/home/as/Desktop/LinuxEmbeddedWithBBB_Ver2/wayland/code/wlroots/subprojects/libliftoff/include
+    - -I.
+    - -Iinclude
+
+Diagnostics:
+  UnusedIncludes: Strict
