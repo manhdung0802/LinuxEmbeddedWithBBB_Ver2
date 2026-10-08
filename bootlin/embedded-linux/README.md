@@ -95,6 +95,29 @@
     - [Memory debugging](#memory-debugging)
     - [Thực hành](#thực-hành-1)
 
+# setup
+```
+PATH=/home/as/x-tools/arm-bootlin-linux-gnueabihf/bin:$PATH
+
+ssh as@192.168.31.164
+
+APPEND root=/dev/nfs rw nfsroot=192.168.0.1:/nfs,nfsvers=3,tcp ip=192.168.0.100:::::usb0 g_ether.dev_addr=f8:dc:7a:00:00:02 g_ether.host_addr=f8:dc:7a:00:00:01 rootwait rw console=${console},${baudrate}
+
+host: 192.168.1.11
+target: 192.168.0.100
+
+uboot:
+
+bootargs=console=ttyO0,115200n8 root=/dev/nfs ip=192.168.0.100:::::eth0 nfsroot=192.168.0.1:/home/as/Desktop/linuxEmbedd
+edBBB/bootlin/Yocto-Project/nfsroot,nfsvers=3,tcp rw rootwait
+
+bootcmd=tftp 0x81000000 zImage; sleep 1;tftp 0x82000000 am335x-boneblack.dtb; run init_console; bootz 0x81000000 - 0x820
+00000
+ethprime=eth0
+ipaddr=192.168.0.100
+serverip=192.168.0.1
+```
+
 # Cross-compiling toolchains
 ## 1. Toolchain definition
 - Cross compiling sinh ra để:

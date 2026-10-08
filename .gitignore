@@ -23,6 +23,6 @@ yocto-bbb-labs
 .vscode
 lichee
 
-wayland/code/wlroots
+# wayland/code/wlroots
 
-wayland/code/wlroots_src/wlroots
+# wayland/code/wlroots_src/wlroots

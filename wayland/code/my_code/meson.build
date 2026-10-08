@@ -53,6 +53,9 @@ proto_deps = {
 
 # Program registry
 programs = {
+  'my-scene-graph': {
+    'src': ['my-scene-graph.c'],
+  },
   'simple': {
     'src': ['simple.c'],
   },

@@ -6,3 +6,18 @@
 
 # lệnh debug
 `gdb -batch -ex run -ex bt --args ./build/simple`
+
+# trình tự code
+- simple.c - done
+- scene-graph.c
+    + `./build/my-scene-graph -s "weston-terminal --shell=/home/as/Desktop/LinuxEmbeddedWithBBB_Ver2/wayland/code/my_code/anim"`
+- tinywl.c
+- pointer.c
+- output-layout.c
+- rotation.c
+- cairo-buffer.c
+- touch.c
+- tablet.c
+- fullscreen-shell.c
+- output-layers.c
+- embedded.c
