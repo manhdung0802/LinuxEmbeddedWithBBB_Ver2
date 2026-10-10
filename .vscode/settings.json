@@ -1,7 +1,8 @@
 {
+    "explorer.excludeGitIgnore": false,
     "files.exclude": {
         "**/.*.cmd": true,
-        "**/.*.d": true,
+        "**/.*.d": false,
         "**/*.o": true,
         "**/*.mod": true,
         "**/*.mod.c": true,
