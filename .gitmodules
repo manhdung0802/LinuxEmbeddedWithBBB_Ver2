@@ -1,0 +1,3 @@
+[submodule "wayland/code/my_code"]
+	path = wayland/code/my_code
+	url = https://github.com/manhdung0802/wayland
