@@ -436,7 +436,7 @@ MODULE_AUTHOR("William Shakespeare");
     + `.dts`: device tree source
     + `dtc`: device tree compiler 
         - Lệnh build: `dtc -I dts -O dtb -o foo.dtb foo.dts`
-        - Lệnh đọc: `dtc -I dtb -0 dts foo.dtb`
+        - Lệnh đọc: `dtc -I dtb -O dts foo.dtb`
     + `.dtb`: device tree blob (device tree binary)
     + DTB còn gọi là FDT - Flattened device tree
 - Where are Device tree sources located?    
