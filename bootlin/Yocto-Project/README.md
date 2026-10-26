@@ -660,7 +660,7 @@
 - **Việc tạo recipe chỉ mới là tải code về rồi build, muốn app đó có trong rootfs thì cần append app đó vào `local.conf` bằng lệnh `IMAGE_INSTALL:append = " ninvaders"`**
 - Lệnh copy rootfs vào folder nfs: 
     ```
-    sudo tar xpf /home/as/Desktop/linuxEmbeddedBBB/bootlin/Yocto-Project/yocto-bbb-labs/build/tmp/deploy/images/beaglebone/core-image-minimal-beaglebone.rootfs.tar.xz -C /home/as/Desktop/linuxEmbeddedBBB/bootlin/Yocto-Project/nfsroot
+    sudo tar --overwrite -xpf /home/as/Desktop/linuxEmbeddedBBB/bootlin/Yocto-Project/yocto-bbb-labs/build/deploy-ti/images/bbb-screen-machine/core-image-minimal-bbb-screen-machine.rootfs.tar.xz -C /home/as/Desktop/linuxEmbeddedBBB/bbb-screen/nfsroot
     ```
 # Writing recipes - advanced
 ## Extending a recipe
