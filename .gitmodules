@@ -1,3 +1,6 @@
 [submodule "bbb-screen"]
 	path = bbb-screen
 	url = https://github.com/manhdung0802/bbb-screen
+[submodule "bbb-media-player"]
+	path = bbb-media-player
+	url = https://github.com/manhdung0802/bbb-media-player
