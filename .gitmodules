@@ -4,3 +4,6 @@
 [submodule "bbb-media-player"]
 	path = bbb-media-player
 	url = https://github.com/manhdung0802/bbb-media-player
+[submodule "wayland/code/wlroots_src/wlroots"]
+	path = wayland/code/wlroots_src/wlroots
+	url = https://gitlab.freedesktop.org/wlroots/wlroots.git
