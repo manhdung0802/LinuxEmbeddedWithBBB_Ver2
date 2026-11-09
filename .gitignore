@@ -26,3 +26,7 @@ lichee
 # wayland/code/wlroots
 
 # wayland/code/wlroots_src/wlroots
+
+# more_knowledge build directories
+more_knowledge/**/build/
+
