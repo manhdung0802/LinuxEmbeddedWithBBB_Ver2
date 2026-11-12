@@ -2,6 +2,26 @@ cmake_minimum_required(VERSION 3.16)
 
 project(dungadder)
 
+find_library(myglewlib NAMES glew glew2 GLEW GLEW2)
+if(myglewlib)
+    message(STATUS "Found glew")
+else()
+    message(FATAL_ERROR "Not found glew")
+endif()
+
+find_library(myglulib NAMES glu GLU)
+if(myglulib)
+    message(STATUS "Found glu")
+else()
+    message(FATAL_ERROR "Not found glu")
+endif()
+
+find_library(mygllib NAMES gl GL)
+if(mygllib)
+    message(STATUS "Found gl")
+else()
+    message(FATAL_ERROR "Not found gl")
+endif()
 
 option(USER_ADDER "Simple library for adding." ON)
 
@@ -26,4 +46,7 @@ target_link_directories(${PROJECT_NAME}
     ${EXTRA_DIR})
 target_link_libraries(${PROJECT_NAME}
     ${EXTRA_LIBS}
+    ${myglewlib}
+    ${mygllib}
+    ${myglulib}
     glfw)

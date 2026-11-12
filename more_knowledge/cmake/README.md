@@ -10,7 +10,7 @@
 - cmake: tạo ra Makefile
 - make: thực thi file Makefile đó
 # 2. Libraries, Installing, Paring with execution
-- `install(TARGERS trim DESTINATION bin)`: cài trim vào folder bin, thường là `/usr/local/bin`
+- `install(TARGETS trim DESTINATION bin)`: cài trim vào folder bin, thường là `/usr/local/bin`
     + `/usr/local/bin` chứa các gói cho người dùng tự code, tự cài
     + `/usr/bin` chứa các gói từ apt, pacman, ...
     + dùng lệnh `make install`
@@ -19,7 +19,7 @@
     + khi build sẽ tạo ra static library `lib${PROJECT_NAME}.a` (đuôi .a)
 - ở cmake của main, cần khai báo đường dẫn của library 
     + `target_link_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/../libs/build/)`: khai báo đường dẫn chứa lib trong folder build
-    + `target_link_libraries(${PROJECT_NAME} dungmath)`: khai báo đường dẫn chứa lib để link với project, là folder trong thư mục build
+    + `target_link_libraries(${PROJECT_NAME} dungmath)`: tên của lib
     + `target_include_directories()`: khai báo đường dẫn của header để include được trong các file ngoài folder mà không cần đường dẫn `../`
 - `set_target_properties`: set các thuộc tính cho target
 - `add_subdirectory(folder)`: thêm các folder con vào để cmake tổng khi build sẽ build luôn cả phần con
@@ -51,3 +51,21 @@
 - không quan trọng
 
 # 8. find_library()
+- dùng để tìm tệp binary của thư viện mình cần trong máy build, chưa có thì phải cài lib đó trước
+- `find_library(myglewlib NAMES glew glew2 GLEW GLEW2 DOC "glew library")`
+    + `myglewlib`: tên bất kì
+    + `glew`: tên của thư viện
+    + `NAMES glew2 GLEW GLEW2`: các tên mà thư viện này có thể dùng (có thể không cần ghi)
+    + `DOC "glew library"`: mô tả
+
+# 9. find_package() và PkgConfig 
+
+# 10. cờ biên dịch & Build Type
+
+# 11. Toolchain
+
+# 12. FetchContent
+
+# 13. PUBLIC / PRIVATE / INTERFACE
+
+# 14. Tạo compile_commands.json
