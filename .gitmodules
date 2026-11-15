@@ -10,3 +10,6 @@
 [submodule "more_knowledge/cmake/3-4-5/external/glfw"]
 	path = more_knowledge/cmake/3-4-5-8/external/glfw
 	url = https://github.com/glfw/glfw.git
+[submodule "more_knowledge/cmake/9/external/glfw"]
+	path = more_knowledge/cmake/9/external/glfw
+	url = https://github.com/glfw/glfw.git
