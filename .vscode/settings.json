@@ -29,6 +29,9 @@
         "**/.vscode/**": true
     },
     "editor.formatOnSave": true,
+    "[cmake]": {
+        "editor.formatOnSave": false
+    },
     "[c]": {
         "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
         "editor.tabSize": 4,

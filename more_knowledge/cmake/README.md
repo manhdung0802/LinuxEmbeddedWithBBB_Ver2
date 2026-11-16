@@ -31,12 +31,13 @@
         - khi đã dùng cái này thì không cần gọi `target_link_directories` cho các folder đó nữa
 
 # 4. Versioning source code
-- `https://www.youtube.com/watch?v=K3bx7NYSXVk&list=PLalVdRk2RC6o5GHu618ARWh0VO0bFlif4&index=4`
-- dùng `configure_file()` để cấu hình file `.h.in`
-    + PROJECT_VERSION = 1.0.0 là ver trong `project(main VERSION 1.0.0)`
+- dùng `configure_file()` để cấu hình file `.h.in`. Trong file `.h.in`:
+    + #define a @b@
+    + PROJECT_VERSION = 1.0.0 là ver trong `project(main VERSION 1.0.0)`, phải là `#define PROJECT_VERSION_STRING "@PROJECT_VERSION@"`
     + PROJECT_VERSION_MAJOR = 1
     + PROJECT_VERSION_MINOR = 0
     + PROJECT_VERSION_PATCH = 0
+- dùng #cmakedefine để define các cờ cho cmake
 
 # 5. Making Libs Optional
 - tùy chọn biên dịch lib nào
@@ -114,6 +115,16 @@ Quy định tính kế thừa (transitivity) của thuộc tính target (include
     + Áp dụng: CHỈ cho những ai link tới target đó.
     + Bản thân target: KHÔNG dùng (thường là target header-only không có file .cpp để biên dịch).
     + Thường dùng cho: Header-only library.
+    + ví dụ về folder 13/fast_math/include
+    ```c
+    add_library(fast_math INTERFACE)
+
+    target_include_directories(fast_math INTERFACE fast_math/include)
+
+    target_link_libraries(${PROJECT_NAME}
+        PRIVATE src fast_math
+    )
+    ```
 - PUBLIC:
     + Áp dụng: CẢ HAI (bản thân target dùng VÀ ai link tới nó cũng tự động được kế thừa).
     + Thường dùng cho: thư mục chứa header công khai (include/), cờ chuẩn C++ chung của API.

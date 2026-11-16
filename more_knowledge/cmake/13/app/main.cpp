@@ -1,6 +1,6 @@
-#include <iostream>
 #include "car.h"       // Nhìn thấy được vì car/include/ được cấu hình là PUBLIC
 #include "fast_math.h" // Nhìn thấy được vì fast_math/include/ là INTERFACE
+#include <iostream>
 
 // =========================================================================
 // [BÀI TEST TÍNH ĐÓNG GÓI - PRIVATE]:
@@ -14,23 +14,23 @@
 // =========================================================================
 
 int main() {
-    std::cout << "=========================================================\n";
-    std::cout << "     DEMO THỰC HÀNH: PUBLIC / PRIVATE / INTERFACE        \n";
-    std::cout << "=========================================================\n\n";
+	std::cout << "=========================================================\n";
+	std::cout << "     DEMO THỰC HÀNH: PUBLIC / PRIVATE / INTERFACE        \n";
+	std::cout << "=========================================================\n\n";
 
-    // 1. Thao tác với thư viện Car (Qua giao diện PUBLIC)
-    Car my_car("VinFast Lux A2.0");
-    my_car.start();
-    my_car.accelerate(90);
+	// 1. Thao tác với thư viện Car (Qua giao diện PUBLIC)
+	Car my_car("VinFast Lux A2.0");
+	my_car.start();
+	my_car.accelerate(90);
 
-    // 2. Thao tác với thư viện FastMath (Được link dạng INTERFACE)
-    double distance_km = 320.0;
-    double fuel_used_liters = 22.5;
-    double efficiency = FastMath::calculate_fuel_efficiency(distance_km, fuel_used_liters);
+	// 2. Thao tác với thư viện FastMath (Được link dạng INTERFACE)
+	double distance_km = 320.0;
+	double fuel_used_liters = 22.5;
+	double efficiency = FastMath::calculate_fuel_efficiency(distance_km, fuel_used_liters);
 
-    std::cout << "\n[App]: Tinh toan tieu thu nhien lieu: " 
-              << efficiency << " km/lit\n";
+	std::cout << "\n[App]: Tinh toan tieu thu nhien lieu: "
+		  << efficiency << " km/lit\n";
 
-    std::cout << "\n=========================================================\n";
-    return 0;
+	std::cout << "\n=========================================================\n";
+	return 0;
 }
